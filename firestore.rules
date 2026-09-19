@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Surveys: Field observations can be read by all students/classrooms,
+    // created by students (guest or signed-in), updated/deleted by student investigators or owner.
+    match /surveys/{surveyId} {
+      allow read: if true;
+      allow create: if true; // Allows student field tablets/guests to submit observations
+      allow update, delete: if true; // Allow student investigators to delete observations in their field register
+    }
+
+    // Habitats: Public catalog of biodiversity sites
+    match /habitats/{habitatId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // User profiles: Users can manage their own profile
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+  }
+}

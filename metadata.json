@@ -1,0 +1,6 @@
+{
+  "name": "WWF Biodiversity Survey & AI Extinction Prediction Platform",
+  "description": "BioDex: Middle school biodiversity field survey register and AI extinction trajectory prediction platform built for 8th & 9th grade student naturalists.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

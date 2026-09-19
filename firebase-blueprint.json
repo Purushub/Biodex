@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "SurveyRecord": {
+      "title": "Survey Record",
+      "description": "Biodiversity field observation and AI extinction prediction record",
+      "type": "object",
+      "properties": {
+        "recordId": { "type": "string" },
+        "studentGuestId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userDisplayName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "gradeLevel": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "speciesId": { "type": "string" },
+        "speciesCommon": { "type": "string" },
+        "speciesScientific": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "visionConfidence": { "type": "string" },
+        "observedCount": { "type": "number" },
+        "habitatType": { "type": "string" },
+        "humanDisturbance": { "type": "string" },
+        "gpsCoordinates": { "type": "string" },
+        "sectorCoord": { "type": "string" },
+        "historicalPop2001": { "type": "number" },
+        "historicalPop2007": { "type": "number" },
+        "historicalPop2012": { "type": "number" },
+        "historicalPop2013": { "type": "number" },
+        "historicalPop2019": { "type": "number" },
+        "historicalPop2025": { "type": "number" },
+        "currentPop2026": { "type": "number" },
+        "predictedPop2031": { "type": "number" },
+        "aiEndangeredStatus": { "type": "string" },
+        "aiExtinctionRiskPercentage": { "type": "number" },
+        "aiProjectedExtinctionYear": { "type": "string" },
+        "smartReportUrl": { "type": "string" },
+        "Record_ID": { "type": "string" },
+        "Student_Guest_ID": { "type": "string" },
+        "Grade_Level": { "type": "string" },
+        "Timestamp": { "type": "string" },
+        "Species_Name_Common": { "type": "string" },
+        "Species_Name_Scientific": { "type": "string" },
+        "Image_URL": { "type": "string" },
+        "AI_Vision_Match_Confidence": { "type": "string" },
+        "Observed_Count": { "type": "number" },
+        "Habitat_Type": { "type": "string" },
+        "Historical_Pop_Baseline_2001": { "type": "number" },
+        "Historical_Pop_Baseline_2007": { "type": "number" },
+        "Historical_Pop_Baseline_2013": { "type": "number" },
+        "Historical_Pop_Baseline_2019": { "type": "number" },
+        "Historical_Pop_Baseline_2025": { "type": "number" },
+        "Prediction_Pop_Baseline_2031": { "type": "number" },
+        "AI_Endangered_Status": { "type": "string" },
+        "AI_Extinction_Risk_Percentage": { "type": "number" },
+        "AI_Projected_Extinction_Year": { "type": "string" },
+        "Smart_Report_URL": { "type": "string" },
+        "aiAnalysis": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["recordId", "speciesCommon", "habitatType", "timestamp"]
+    },
+    "Habitat": {
+      "title": "Habitat Hotspot",
+      "description": "Nearby ecological habitat site for species collection and survey",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "distanceKm": { "type": "number" },
+        "keySpecies": { "type": "array", "items": { "type": "string" } },
+        "integrityScore": { "type": "number" },
+        "description": { "type": "string" },
+        "mapsUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "latitude", "longitude"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Authenticated student naturalist or biology educator profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "gradeLevel": { "type": "string" },
+        "schoolCode": { "type": "string" },
+        "totalObservations": { "type": "number" }
+      },
+      "required": ["uid"]
+    }
+  },
+  "firestore": {
+    "/surveys/{surveyId}": {
+      "schema": "SurveyRecord",
+      "description": "Classroom and field biodiversity observations"
+    },
+    "/habitats/{habitatId}": {
+      "schema": "Habitat",
+      "description": "Ecological survey sites and nearby habitats"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data"
+    }
+  }
+}
