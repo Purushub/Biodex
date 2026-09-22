@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 let aiClient: GoogleGenAI | null = null;
+let geminiDisabled = false; // Circuit breaker: skip Gemini after repeated PERMISSION_DENIED
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey =
@@ -47,7 +48,7 @@ async function generateWithFallbackModels(
   ai: GoogleGenAI,
   paramsBuilder: (modelName: string) => any
 ): Promise<{ response: any; model: string }> {
-  const models = ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   for (const m of models) {
     try {
       const res = await ai.models.generateContent(paramsBuilder(m));
@@ -71,6 +72,30 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // Manager / Admin Authentication Endpoint for deleting register entries
+  app.post('/api/auth/manager-login', (req, res) => {
+    const { email, password } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanPass = String(password || '').trim();
+    const isManagerEmail =
+      cleanEmail === 'pm@skillizee.io' ||
+      cleanEmail === 'pm@skillizee' ||
+      cleanEmail === 'pm@skillizee.com' ||
+      cleanEmail.startsWith('pm@skillizee');
+    if (isManagerEmail && cleanPass === '12345') {
+      return res.json({
+        success: true,
+        user: {
+          email: 'pm@skillizee.io',
+          displayName: 'Project Manager (Skillizee)',
+          role: 'manager',
+          canDeleteEntries: true,
+        },
+      });
+    }
+    return res.status(401).json({ success: false, error: 'Invalid Manager ID or Password' });
+  });
+
   // AI Image Recognition / Verification Endpoint (Google Lens Visual Identification & Description)
   const identifySpeciesHandler = async (req: express.Request, res: express.Response) => {
     try {
@@ -84,6 +109,10 @@ async function startServer() {
         opticalColorHint,
         localResultHint,
         avgRgb,
+        mobilenetPredictions,
+        mobilenetCategory,
+        scanMode,
+        customSpeciesCatalog,
       } = req.body;
       const ai = getGeminiClient();
 
@@ -120,7 +149,16 @@ async function startServer() {
         }
       }
 
-      if (ai && cleanBase64) {
+      // Log MobileNet predictions when received
+      if (mobilenetPredictions && Array.isArray(mobilenetPredictions) && mobilenetPredictions.length > 0) {
+        console.log('[BioDex Server] MobileNet predictions received:', mobilenetPredictions.map((p: any) => `${p.className} (${(p.probability * 100).toFixed(1)}%)`).join(', '));
+      }
+
+      // Only use Gemini when scanMode is 'gemini' and not circuit-broken
+      const useGemini = scanMode === 'gemini' && ai && cleanBase64 && !geminiDisabled;
+      
+      if (useGemini) {
+        console.log('[BioDex Server] AI Scan mode — sending image to Gemini vision API...');
         const prompt = `You are Google Lens, the world's most accurate optical search and real-time biological visual recognition intelligence.
 Examine this photograph specimen carefully.
 CRITICAL INSTRUCTIONS:
@@ -165,8 +203,8 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
 - Explain technical words simply (e.g. explain that PVA stands for Population Viability Analysis - a future population survival forecast).
 - Identify the exact fruit, vegetable, plant, or animal shown in the image (e.g., Grapes, Strawberry, Tomato, Apple, Banana, Cucumber, Carrot, etc.). Never default or guess Apple if another fruit or vegetable is shown!`;
 
-        // Attempt supported Gemini models in order (prioritizing modern gemini-3.6-flash and gemini-3.8-flash)
-        const visionModels = ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+        // Try Gemini models in order of reliability
+        const visionModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         let lastVisionError = '';
         for (const modelName of visionModels) {
           try {
@@ -197,25 +235,84 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
           } catch (visionErr) {
             lastVisionError = visionErr instanceof Error ? visionErr.message : String(visionErr);
             console.warn(`Vision model ${modelName} attempt:`, lastVisionError);
+            // Circuit breaker: disable Gemini if access is denied
+            if (lastVisionError.includes('PERMISSION_DENIED') || lastVisionError.includes('denied access')) {
+              geminiDisabled = true;
+              console.log('[BioDex Server] Gemini API access denied. Circuit breaker activated — using MobileNet + taxonomy engine.');
+              break;
+            }
           }
         }
         if (lastVisionError) {
-          console.warn('Gemini vision models unavailable or denied, activating optical taxonomy engine:', lastVisionError);
+          console.warn('Gemini vision models unavailable or denied, activating MobileNet + taxonomy engine:', lastVisionError);
         }
       }
 
-      // Contextual high-precision optical & taxonomy classification engine
+      // Build combined hint from MobileNet predictions + other sources
       const localName = localResultHint && typeof localResultHint === 'object' ? localResultHint.commonName || '' : '';
       const localClass = localResultHint && typeof localResultHint === 'object' ? localResultHint.detectedClass || '' : '';
       const localCat = localResultHint && typeof localResultHint === 'object' ? localResultHint.category || '' : '';
-      const combinedHint = [commonNameHint, fileName, imageUrl, localName, localClass, localCat].filter(Boolean).join(' ').toLowerCase();
+      
+      // Extract all MobileNet class names to enrich the hint
+      let mobilenetLabels = '';
+      if (mobilenetPredictions && Array.isArray(mobilenetPredictions)) {
+        mobilenetLabels = mobilenetPredictions.map((p: any) => p.className || '').filter(Boolean).join(' ');
+      }
+      
+      const combinedHint = [commonNameHint, mobilenetLabels, fileName, imageUrl, localName, localClass, localCat].filter(Boolean).join(' ').toLowerCase();
+      console.log('[BioDex Server] Combined hint for taxonomy matching:', combinedHint.slice(0, 200));
+      
       let color = (opticalColorHint || '').toLowerCase();
       if (avgRgb && typeof avgRgb === 'object') {
         const { r = 0, g = 0, b = 0 } = avgRgb;
-        if (r > 110 && g > 65 && b < 145 && r > g && g >= b) {
-          color += ' tawny_golden_fur tan fur mammal jackal canid';
+        // Only tag color descriptors - never inject species names into color hints
+        if (g > r * 1.15 && g > b * 1.15) {
+          color += ' green flora_green';
+        } else if (r > 170 && g < 100 && b < 100) {
+          color += ' crimson_red';
+        } else if (r > 160 && g > 140 && b < 90) {
+          color += ' sunflower_yellow';
+        } else if (r > 130 && g > 80 && b < 120 && r > g) {
+          color += ' warm_brown';
         }
       }
+
+      // Check user-registered custom species database first
+      if (Array.isArray(customSpeciesCatalog) && customSpeciesCatalog.length > 0) {
+        for (const cs of customSpeciesCatalog) {
+          const csCommon = (cs.commonName || '').toLowerCase().trim();
+          const csScientific = (cs.scientificName || '').toLowerCase().trim();
+          const csTags = (cs.tags || []).map((t: any) => String(t).toLowerCase().trim());
+          
+          let matched = false;
+          if (csCommon.length > 2 && (combinedHint.includes(csCommon) || (csCommon.length > 3 && combinedHint.length > 3 && csCommon.includes(combinedHint)))) {
+            matched = true;
+          } else if (csScientific.length > 2 && combinedHint.includes(csScientific)) {
+            matched = true;
+          } else if (mobilenetPredictions && Array.isArray(mobilenetPredictions)) {
+            for (const p of mobilenetPredictions) {
+              const pLabel = (p.className || '').toLowerCase();
+              if (csTags.some((t: string) => t.length > 2 && t !== 'flora' && t !== 'fauna' && t !== 'custom discovery' && (pLabel.includes(t) || t.includes(pLabel)))) {
+                matched = true;
+                break;
+              }
+            }
+          }
+
+          if (matched) {
+            console.log(`[BioDex Server] Successfully matched custom species database: ${cs.commonName}`);
+            return res.json({
+              success: true,
+              data: {
+                ...cs,
+                confidence: cs.visionMatchConfidence || 96.8,
+              },
+              source: 'CustomSpecies-Database',
+            });
+          }
+        }
+      }
+
       let fallbackData;
 
       // Check for Lilies first
@@ -1317,18 +1414,12 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
         };
       } else if (
         combinedHint.includes('jackal') ||
-        combinedHint.includes('canis') ||
-        combinedHint.includes('dog') ||
-        combinedHint.includes('canine') ||
+        combinedHint.includes('canis aureus') ||
         combinedHint.includes('wolf') ||
         combinedHint.includes('dingo') ||
-        combinedHint.includes('fox') ||
-        color.includes('tawny') ||
-        color.includes('fur') ||
-        color.includes('tan') ||
-        color.includes('golden_fur')
+        combinedHint.includes('fox')
       ) {
-        // Canidae (Golden Jackal / Wild Canid)
+        // Canidae (Golden Jackal / Wild Canid) - only match on explicit text hints, NOT color
         fallbackData = {
           commonName: 'Golden Jackal',
           scientificName: 'Canis aureus',
@@ -1434,41 +1525,37 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
         };
       } else {
         // Intelligent optical determination based on chromatic wavelengths
-        const isWarmTone = color.includes('tawny') || color.includes('gold') || color.includes('tan') || color.includes('brown') || color.includes('fur');
         const isGreen = color.includes('green') || color.includes('flora');
         const isYellow = color.includes('yellow');
         const isRed = color.includes('red');
 
-        if (isWarmTone) {
-          // Default warm-tone wildlife to Golden Jackal
+        if (isGreen) {
+          // Green-dominant → default to native flora
           fallbackData = {
-            commonName: 'Golden Jackal',
-            scientificName: 'Canis aureus',
-            confidence: 96.4,
-            description: 'A golden-tawny wild canid native to open grasslands, scrublands, and agricultural margins. An adaptable omnivore and vital ecological indicator that controls small rodent populations and clears carrion.',
+            commonName: 'Native Prairie Flora',
+            scientificName: 'Plantae sp.',
+            confidence: 88.0,
+            description: 'A green photosynthetic flora specimen detected via optical analysis. For precise species identification, ensure good lighting and frame the subject clearly within the viewfinder.',
             visualFeatures: [
-              'Coarse golden-tawny coat with reddish-buff limbs and underfur',
-              'Slender, elongated legs with compact digitigrade paws adapted for prairie trotting',
-              'Pointed agile muzzle with keen amber eyes and erect triangular ears',
-              'Bushy tail extending to the hocks with a dark brownish-black tip',
+              'Green chlorophyll-rich tissue visible in captured frame',
+              'Leaf or stem structures detected in optical field',
+              'Natural photosynthetic organism morphology',
+              'Subject framed in observation reticle',
             ],
-            kingdom: 'ANIMALIA',
-            phylum: 'Chordata',
-            class: 'Mammalia',
-            order: 'CARNIVORA',
-            family: 'Canidae',
-            genus: 'Canis',
+            kingdom: 'PLANTAE',
+            phylum: 'Tracheophyta',
+            class: 'Magnoliopsida',
+            order: 'ASTERALES',
+            family: 'Asteraceae',
+            genus: 'Unknown',
             iucnStatus: 'Least Concern',
-            habitatType: 'Tallgrass Plains, Scrub Savannas & Meadow Margins',
-            keyThreats: 'Habitat fragmentation, human-wildlife conflict, and vehicle collisions',
-            educationalNotes: 'Golden jackals are highly social canids that form lifelong monogamous pairs. Both parents actively defend their home range and regurgitate food to nurture their pups.',
-            ecologicalRole: 'Keystone mesopredator and scavenger maintaining trophic balance and preventing rodent pest outbreaks',
-            googleLensFact: 'Golden jackals can sprint up to 16 km/h (10 mph) continuously for hours while patrolling expansive home ranges!',
-            similarVisualMatches: [
-              { name: 'Red Fox (Vulpes vulpes)', distinction: 'Smaller body frame, brighter rust-orange coat, and distinctive pure white tail tip.' },
-              { name: 'Gray Wolf (Canis lupus)', distinction: 'Significantly heavier skull, larger mass, and broader muzzle.' },
-            ],
-            tags: ['Fauna', 'Mammal', 'Carnivora', 'Canidae', 'Grassland Predator'],
+            habitatType: 'Field Observation',
+            keyThreats: 'Habitat fragmentation and herbicide drift',
+            educationalNotes: 'Try scanning again with the subject well-lit and centered in the viewfinder for species-level AI identification!',
+            ecologicalRole: 'Green plants are primary producers converting sunlight into energy via photosynthesis.',
+            googleLensFact: 'Plants produce the oxygen we breathe through photosynthesis, converting CO₂ and water into sugar and O₂ using sunlight!',
+            similarVisualMatches: [],
+            tags: ['Flora', 'Photosynthetic', 'Field Observation'],
           };
         } else if (isYellow) {
           fallbackData = {
@@ -1500,34 +1587,33 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
             tags: ['Flora', 'Asteraceae', 'Helianthus', 'Pollinator Keystone'],
           };
         } else {
-          // Default flora to Western Prairie Fringed Orchid
+          // Default catch-all: Species not detected / New species detected, please input name
           fallbackData = {
-            commonName: 'Western Prairie Fringed Orchid',
-            scientificName: 'Platanthera praeclara',
-            confidence: 98.2,
-            description: 'A rare and endangered terrestrial orchid of wet-mesic tallgrass prairies. Characterized by an erect spike bearing up to two dozen creamy-white blossoms with deeply fringed tripartite lower lips.',
+            commonName: 'Species not detected',
+            scientificName: 'New species detected, please input name',
+            confidence: 75.0,
+            isNewSpecies: true,
+            description: 'Species not detected in the current catalog. You can name this new species now and add it to your Biodiversity Register so BioDex recognizes it in future scans.',
             visualFeatures: [
-              'Spike of 10-24 creamy-white fragrant blossoms with three-part fringed lower lips',
-              'Elongated nectar spur up to 5 cm long specialized for nocturnal hawkmoth pollination',
-              'Alternate, lance-shaped basal leaves clasping a stout, smooth green stem',
-              'Subterranean mycorrhizal root system reliant on specialized soil fungi',
+              'Visual profile captured in viewfinder',
+              'Subject ready for naturalist cataloging',
+              'Input a custom species name below',
+              'BioDex will learn and match this species in future scans',
             ],
-            kingdom: 'PLANTAE',
-            phylum: 'Tracheophyta',
-            class: 'Liliopsida',
-            order: 'ASPARAGALES',
-            family: 'Orchidaceae',
-            genus: 'Platanthera',
-            iucnStatus: 'Endangered',
-            habitatType: 'Wet-Mesic Tallgrass Prairies, Sedge Meadows & Calcareous Fens',
-            keyThreats: 'Agricultural drainage, conversion of virgin prairie, invasive reed canary grass',
-            educationalNotes: 'This rare orchid releases its sweetest clove-like scent at night, guiding sphinx moths with long tongues (proboscis) to reach the deep nectar spur.',
-            ecologicalRole: 'Premier ecological indicator species; its presence confirms an undisturbed, hydrologically intact native prairie ecosystem',
-            googleLensFact: 'The seeds of this orchid are dust-fine and lack endosperm; they cannot sprout unless infected by a friendly subterranean mycorrhizal fungus!',
-            similarVisualMatches: [
-              { name: 'Eastern Prairie Fringed Orchid (Platanthera leucophaea)', distinction: 'Slightly smaller flowers with shorter nectar spur, found east of the Mississippi River.' },
-            ],
-            tags: ['Flora', 'Orchidaceae', 'Platanthera', 'Endangered', 'Prairie Indicator'],
+            kingdom: 'EUKARYOTA',
+            phylum: 'Pending Classification',
+            class: 'Pending Classification',
+            order: 'NEW_DISCOVERY',
+            family: 'Field Discovery',
+            genus: 'Unknown',
+            iucnStatus: 'New Discovery',
+            habitatType: 'Field Observation',
+            keyThreats: 'Pending naturalist assessment',
+            educationalNotes: 'When encountering an uncataloged specimen, students and field naturalists can document the discovery, input the species name, and contribute to the local Biodiversity Register.',
+            ecologicalRole: 'Field specimen ready for observation and research',
+            googleLensFact: 'Scientists discover an estimated 18,000 new species every year around the world!',
+            similarVisualMatches: [],
+            tags: ['New Discovery', 'Field Observation', 'Student Record'],
           };
         }
       }

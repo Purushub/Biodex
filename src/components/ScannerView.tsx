@@ -29,8 +29,23 @@ import {
   ChevronRight,
   Search,
   X,
+  Cpu,
 } from 'lucide-react';
 import { ScannedSpecimenFormModal } from './ScannedSpecimenFormModal';
+import {
+  findMatchingCustomSpecies,
+  getCustomSpeciesCatalog,
+  isUnidentifiedSpeciesName,
+  saveCustomSpecies,
+} from '../utils/customSpeciesDB';
+import {
+  loadModel,
+  classifyImage,
+  mapToSpeciesHint,
+  isModelReady,
+  isModelLoading,
+  type ClassificationResult,
+} from '../lib/tensorflowClassifier';
 
 interface ScannerViewProps {
   currentSpecies: SpeciesData;
@@ -105,6 +120,9 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [capturedSnapshotUrl, setCapturedSnapshotUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [aiModelStatus, setAiModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [scanMode, setScanMode] = useState<'tensorflow' | 'gemini'>('tensorflow');
+  const [lastDetectionKeywords, setLastDetectionKeywords] = useState<string[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -115,6 +133,20 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     return () => {
       stopCamera();
     };
+  }, []);
+
+  // Preload TensorFlow.js MobileNet model on mount
+  useEffect(() => {
+    setAiModelStatus('loading');
+    loadModel()
+      .then(() => {
+        setAiModelStatus('ready');
+        console.log('[BioDex] AI Model ready for species identification');
+      })
+      .catch((err) => {
+        setAiModelStatus('error');
+        console.warn('[BioDex] AI Model load note:', err);
+      });
   }, []);
 
   // Connect video stream whenever stream changes
@@ -230,6 +262,24 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         console.warn('Canvas frame extraction note:', err);
       }
     }
+
+    // Fallback clean viewfinder frame if video stream is pending or not yet rendered
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 640, 480);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(120, 80, 400, 320);
+        const snapshot = canvas.toDataURL('image/jpeg', 0.88);
+        return { snapshot, colorHint: 'natural', avgRgb: { r: 120, g: 120, b: 120 } };
+      }
+    } catch {}
+
     return null;
   };
 
@@ -239,10 +289,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     imageSrc: string
   ): SpeciesData => {
     const rawData = apiResult?.data || apiResult;
-    const common = rawData?.commonName || 'Golden Jackal';
-    const scientific = rawData?.scientificName || 'Canis aureus';
-    const conf = rawData?.confidence ? Math.round(rawData.confidence) : Math.floor(94 + Math.random() * 5);
-    const iucn = rawData?.iucnStatus || 'Least Concern';
+    const isUndetected = !rawData?.commonName || rawData?.isNewSpecies || isUnidentifiedSpeciesName(rawData?.commonName);
+    const common = isUndetected ? 'Species not detected' : rawData.commonName;
+    const scientific = isUndetected ? 'New species detected, please input name' : (rawData?.scientificName || 'Species novum');
+    const conf = rawData?.confidence ? Math.round(rawData.confidence) : (isUndetected ? 72 : Math.floor(94 + Math.random() * 5));
+    const iucn = isUndetected ? 'New Discovery' : (rawData?.iucnStatus || 'Least Concern');
     const isFauna =
       rawData?.kingdom === 'ANIMALIA' ||
       rawData?.kingdom === 'Animalia' ||
@@ -250,12 +301,23 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         (rawData?.class || rawData?.category || rawData?.family || common).toLowerCase().includes(k)
       );
 
+    // First check if matches any user-registered custom species in database
+    const customMatch = findMatchingCustomSpecies(common);
+    if (customMatch) {
+      return {
+        ...customMatch,
+        imageUrl: imageSrc,
+        visionMatchConfidence: Math.max(conf, 96),
+      };
+    }
+
     // If matches an existing catalog entry by common or scientific name, enrich it
     const catalogMatch = catalog.find(
       (s) =>
-        s.commonName.toLowerCase().includes(common.toLowerCase()) ||
-        common.toLowerCase().includes(s.commonName.toLowerCase()) ||
-        s.scientificName.toLowerCase().includes(scientific.toLowerCase())
+        !isUndetected &&
+        (s.commonName.toLowerCase().includes(common.toLowerCase()) ||
+          common.toLowerCase().includes(s.commonName.toLowerCase()) ||
+          s.scientificName.toLowerCase().includes(scientific.toLowerCase()))
     );
 
     if (catalogMatch) {
@@ -326,10 +388,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     };
   };
 
-  // Shutter Button Capture & AI Detection Flow
+  // Shutter Button Capture & AI Detection Flow (MobileNet + Server Enrichment)
   const handleShutterCapture = async () => {
     soundFX.playConfirm();
     setIsAnalyzingImage(true);
+    setActiveSpecimen(null);
 
     const captureResult = captureFrameFromVideo();
     const snapshot = captureResult?.snapshot || null;
@@ -338,6 +401,45 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     }
 
     try {
+      // Step 1: Run MobileNet classification in-browser (used in TensorFlow mode, or as hint for Gemini mode)
+      let mobilenetHint = '';
+      let mobilenetCategory: 'Flora' | 'Fauna' | 'Object' | 'Unknown' = 'Unknown';
+      let mobilenetConfidence = 0;
+      let mobilenetPredictions: ClassificationResult[] = [];
+
+      if (videoRef.current && isModelReady()) {
+        try {
+          const predictions = await classifyImage(videoRef.current, 5);
+          const mapped = mapToSpeciesHint(predictions);
+          mobilenetHint = mapped.bestMatch;
+          mobilenetCategory = mapped.category;
+          mobilenetConfidence = mapped.confidence;
+          mobilenetPredictions = mapped.allPredictions;
+          setLastDetectionKeywords(predictions.map((p) => p.className));
+          console.log(`[BioDex AI] MobileNet predictions (mode: ${scanMode}):`, predictions);
+          console.log('[BioDex AI] Best match:', mobilenetHint, `(${mobilenetConfidence}%, ${mobilenetCategory})`);
+        } catch (mlErr) {
+          console.warn('[BioDex AI] MobileNet classification note:', mlErr);
+        }
+      }
+
+      // Check if MobileNet directly matches a previously registered custom species
+      const customMatch = findMatchingCustomSpecies(mobilenetHint, mobilenetPredictions);
+      if (customMatch && scanMode === 'tensorflow' && snapshot) {
+        const detected: SpeciesData = {
+          ...customMatch,
+          imageUrl: snapshot,
+          visionMatchConfidence: Math.max(mobilenetConfidence, 96.5),
+        };
+        setConfidenceScore(detected.visionMatchConfidence);
+        setActiveSpecimen(detected);
+        onSpeciesIdentified(detected);
+        setIsAnalyzingImage(false);
+        setIsSaveModalOpen(true);
+        return;
+      }
+
+      // Step 2: Send to server for identification/enrichment
       if (snapshot && captureResult) {
         const res = await fetch('/api/identify-species', {
           method: 'POST',
@@ -347,12 +449,19 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             mimeType: 'image/jpeg',
             opticalColorHint: captureResult.colorHint,
             avgRgb: captureResult.avgRgb,
+            commonNameHint: mobilenetHint,
+            mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
+            mobilenetCategory,
+            scanMode, // 'tensorflow' = skip Gemini, 'gemini' = use Gemini vision
+            customSpeciesCatalog: getCustomSpeciesCatalog(),
           }),
         });
 
         const data = await res.json();
         const detected = createDetectedSpeciesFromAPI(data, snapshot);
-        setConfidenceScore(detected.visionMatchConfidence || 96.5);
+        // Use the higher of MobileNet or server confidence
+        const finalConfidence = Math.max(detected.visionMatchConfidence || 0, mobilenetConfidence);
+        setConfidenceScore(finalConfidence || 96.5);
         setActiveSpecimen(detected);
         onSpeciesIdentified(detected);
       }
@@ -362,14 +471,15 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         const detected = createDetectedSpeciesFromAPI(
           {
             data: {
-              commonName: 'Golden Jackal',
-              scientificName: 'Canis aureus',
-              confidence: 96.2,
-              kingdom: 'ANIMALIA',
-              order: 'CARNIVORA',
-              family: 'Canidae',
-              iucnStatus: 'Least Concern',
-              description: 'Golden-tawny grassland canid observed and classified via optical lens.',
+              commonName: 'Species not detected',
+              scientificName: 'New species detected, please input name',
+              confidence: 72.0,
+              isNewSpecies: true,
+              kingdom: 'EUKARYOTA',
+              order: 'NEW_DISCOVERY',
+              family: 'Field Discovery',
+              iucnStatus: 'New Discovery',
+              description: 'Species not detected in the current catalog. You can name this new species now and add it to your Biodiversity Register so BioDex recognizes it in future scans.',
             },
           },
           snapshot
@@ -379,11 +489,30 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       }
     } finally {
       setIsAnalyzingImage(false);
+      setActiveSpecimen((prev) => {
+        if (prev) return prev;
+        return createDetectedSpeciesFromAPI(
+          {
+            data: {
+              commonName: 'Species not detected',
+              scientificName: 'New species detected, please input name',
+              confidence: 72.0,
+              isNewSpecies: true,
+              kingdom: 'EUKARYOTA',
+              order: 'NEW_DISCOVERY',
+              family: 'Field Discovery',
+              iucnStatus: 'New Discovery',
+              description: 'Species not detected in the current catalog. You can name this new species now and add it to your Biodiversity Register so BioDex recognizes it in future scans.',
+            },
+          },
+          snapshot || capturedSnapshotUrl || ''
+        );
+      });
       setIsSaveModalOpen(true);
     }
   };
 
-  // File Upload & Enhanced AI Vision Detection
+  // File Upload & Enhanced AI Vision Detection (MobileNet + Server)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -396,6 +525,34 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       const dataUrl = reader.result as string;
       setCapturedSnapshotUrl(dataUrl);
 
+      // Run MobileNet on uploaded image
+      let mobilenetHint = '';
+      let mobilenetCategory: 'Flora' | 'Fauna' | 'Object' | 'Unknown' = 'Unknown';
+      let mobilenetPredictions: ClassificationResult[] = [];
+
+      try {
+        if (isModelReady()) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            img.src = dataUrl;
+          });
+          if (img.width > 0) {
+            const predictions = await classifyImage(img, 5);
+            const mapped = mapToSpeciesHint(predictions);
+            mobilenetHint = mapped.bestMatch;
+            mobilenetCategory = mapped.category;
+            mobilenetPredictions = mapped.allPredictions;
+            setLastDetectionKeywords(predictions.map((p) => p.className));
+            console.log('[BioDex AI] MobileNet (upload):', predictions);
+          }
+        }
+      } catch (mlErr) {
+        console.warn('[BioDex AI] Upload classification note:', mlErr);
+      }
+
       try {
         const res = await fetch('/api/identify-species', {
           method: 'POST',
@@ -404,6 +561,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             imageBase64: dataUrl,
             mimeType: file.type || 'image/jpeg',
             fileName: file.name,
+            commonNameHint: mobilenetHint || file.name.replace(/\.[^/.]+$/, ''),
+            mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
+            mobilenetCategory,
+            scanMode, // 'tensorflow' = skip Gemini, 'gemini' = use Gemini vision
+            customSpeciesCatalog: getCustomSpeciesCatalog(),
           }),
         });
 
@@ -417,7 +579,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       } catch (err) {
         console.warn('Upload AI note:', err);
         const detected = createDetectedSpeciesFromAPI(
-          { data: { commonName: file.name.replace(/\.[^/.]+$/, ''), scientificName: 'Uploaded Specimen' } },
+          { data: { commonName: mobilenetHint || file.name.replace(/\.[^/.]+$/, ''), scientificName: 'Uploaded Specimen' } },
           dataUrl
         );
         setActiveSpecimen(detected);
@@ -452,6 +614,34 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         className="hidden"
         onChange={handleFileUpload}
       />
+
+      {/* SCAN MODE TOGGLE — TensorFlow vs AI Scan (Gemini) */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-0.5 bg-white/90 backdrop-blur-md rounded-full p-0.5 border border-slate-200 shadow-lg">
+        <button
+          type="button"
+          onClick={() => { setScanMode('tensorflow'); soundFX.playScanBeep(); }}
+          className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1.5 ${
+            scanMode === 'tensorflow'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Cpu className="w-3 h-3" />
+          TensorFlow
+        </button>
+        <button
+          type="button"
+          onClick={() => { setScanMode('gemini'); soundFX.playScanBeep(); }}
+          className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1.5 ${
+            scanMode === 'gemini'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Sparkles className="w-3 h-3" />
+          AI Scan
+        </button>
+      </div>
 
       {/* BEGIN: CameraFeedBackground - Live Camera by default, blank/clean slate if loading (NO hardcoded orchid) */}
       <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950" data-purpose="camera-viewfinder">
@@ -530,9 +720,13 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             <div
               className="absolute -top-12 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md transition-all"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className={`w-2 h-2 rounded-full ${aiModelStatus === 'ready' ? (scanMode === 'gemini' ? 'bg-blue-500' : 'bg-emerald-500') : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
               <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
-                {isAnalyzingImage ? 'Analyzing Field Vision...' : 'Aim Camera & Tap Shutter'}
+                {isAnalyzingImage
+                  ? scanMode === 'gemini' ? 'Gemini AI Analyzing...' : 'TensorFlow Analyzing...'
+                  : aiModelStatus === 'loading' ? 'Loading AI Model...'
+                  : scanMode === 'gemini' ? 'Gemini AI Ready — Tap Shutter'
+                  : 'TensorFlow Ready — Tap Shutter'}
               </span>
             </div>
           )}
@@ -855,13 +1049,17 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       <ScannedSpecimenFormModal
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
-        species={activeSpecimen || currentSpecies}
-        imageUrl={capturedSnapshotUrl || activeSpecimen?.imageUrl || currentSpecies.imageUrl}
+        species={activeSpecimen || undefined}
+        imageUrl={capturedSnapshotUrl || activeSpecimen?.imageUrl || ''}
         session={session}
         censusCount={censusCount}
         selectedHabitat={selectedHabitat}
         disturbanceLevel={disturbanceLevel}
         gpsCoords={`${activeHabitat?.latitude?.toFixed(4) || '39.1031'}° N, ${Math.abs(activeHabitat?.longitude || 84.512).toFixed(4)}° W`}
+        detectedKeywords={lastDetectionKeywords}
+        onRegisterCustomSpecies={(customSpecies) => {
+          onSpeciesIdentified(customSpecies);
+        }}
         onSaveRecord={(rec) => {
           onLogPBR(rec);
           setIsSaveModalOpen(false);

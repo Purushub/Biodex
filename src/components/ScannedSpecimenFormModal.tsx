@@ -30,6 +30,7 @@ import {
 } from '../types';
 import { soundFX } from '../utils/audio';
 import { saveSurveyRecordToFirestore } from '../lib/firestoreService';
+import { isUnidentifiedSpeciesName, saveCustomSpecies } from '../utils/customSpeciesDB';
 
 interface ScannedSpecimenFormModalProps {
   isOpen: boolean;
@@ -44,6 +45,8 @@ interface ScannedSpecimenFormModalProps {
   imageUrl?: string;
   theme?: ChassisTheme;
   initialRecord?: SurveyRecord | null;
+  detectedKeywords?: string[];
+  onRegisterCustomSpecies?: (species: SpeciesData) => void;
   onSaveRecord: (record: SurveyRecord) => void;
   onNavigateToPva?: () => void;
   onNavigateToBioDex?: () => void;
@@ -62,6 +65,8 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
   gpsCoords: initialGps,
   imageUrl: passedImageUrl,
   initialRecord,
+  detectedKeywords,
+  onRegisterCustomSpecies,
   onSaveRecord,
   onNavigateToPva,
   onNavigateToBioDex,
@@ -71,13 +76,13 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
 
   // Default fallback species if none provided
   const baseSpecies = species || {
-    id: initialRecord?.speciesId || 'pl-001',
-    commonName: initialRecord?.speciesCommon || initialRecord?.Species_Name_Common || 'Western Prairie Fringed Orchid',
-    scientificName: initialRecord?.speciesScientific || initialRecord?.Species_Name_Scientific || 'Platanthera praeclara',
+    id: initialRecord?.speciesId || 'new-discovery',
+    commonName: initialRecord?.speciesCommon || initialRecord?.Species_Name_Common || 'Species not detected',
+    scientificName: initialRecord?.speciesScientific || initialRecord?.Species_Name_Scientific || 'New species detected, please input name',
     category: 'Flora',
-    iucnStatus: (initialRecord?.aiEndangeredStatus || 'Endangered') as IUCNStatus,
+    iucnStatus: (initialRecord?.aiEndangeredStatus || 'New Discovery') as IUCNStatus,
     imageUrl: initialRecord?.imageUrl || initialRecord?.Image_URL || 'https://lh3.googleusercontent.com/aida/AEtjO1WzoMeFgF_ac8rvYsTJ7AMAuuq2El2TVci5rChF8J8zoErMkfynJn3btYfXESfMplkY_5pyc33PqYJDhSqDY4pgGxsxCfFyZmmczpl9q8meSCuFOQ9VsZql4TieGANxZzQVYeXfQTmdh8i78p8ksCuHH6QZYzBFjDSse_rXl7Czy2xFRXPAZiXSJP-m9pv_XruZ57z6GCqjNo0oxHCvwFZ9P09CiP_o_vuSG_KJ3Z8qXbm1JdIhDHEIPKbV',
-    visionMatchConfidence: 98.6,
+    visionMatchConfidence: 75.0,
     historicalPop2001: 150000,
     historicalPop2007: 135000,
     historicalPop2012: 120000,
@@ -121,15 +126,32 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
     initialRecord?.timestamp || initialRecord?.Timestamp || new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
   );
 
+  const initialCommon = initialRecord?.speciesCommon || initialRecord?.Species_Name_Common || lensData?.commonName || baseSpecies.commonName;
+  const initialScientific = initialRecord?.speciesScientific || initialRecord?.Species_Name_Scientific || lensData?.scientificName || baseSpecies.scientificName;
+  const initialIsUndetected = isUnidentifiedSpeciesName(initialCommon) || initialCommon === 'Species not detected';
+
   // 5. Species_Name_Common
   const [speciesCommon, setSpeciesCommon] = useState<string>(
-    initialRecord?.speciesCommon || initialRecord?.Species_Name_Common || lensData?.commonName || baseSpecies.commonName
+    initialIsUndetected ? 'Species not detected' : initialCommon
   );
 
   // 6. Species_Name_Scientific
   const [speciesScientific, setSpeciesScientific] = useState<string>(
-    initialRecord?.speciesScientific || initialRecord?.Species_Name_Scientific || lensData?.scientificName || baseSpecies.scientificName
+    initialIsUndetected ? 'New species detected, please input name' : initialScientific
   );
+
+  // Interactive user name input and category
+  const [customNameInput, setCustomNameInput] = useState<string>(
+    initialIsUndetected ? '' : initialCommon
+  );
+  const [customScientificInput, setCustomScientificInput] = useState<string>(
+    initialIsUndetected ? '' : initialScientific
+  );
+  const [category, setCategory] = useState<'Flora' | 'Fauna'>(
+    (baseSpecies.category as 'Flora' | 'Fauna') || 'Flora'
+  );
+
+  const isDetectedUndetected = isUnidentifiedSpeciesName(speciesCommon) || speciesCommon === 'Species not detected';
 
   // 7. Image_URL
   const [imageUrl, setImageUrl] = useState<string>(
@@ -203,11 +225,19 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
 
   useEffect(() => {
     if (species) {
-      setSpeciesCommon(species.commonName);
-      setSpeciesScientific(species.scientificName);
+      const isUndetected = isUnidentifiedSpeciesName(species.commonName) || species.commonName === 'Species not detected';
+      const cleanCommon = isUndetected ? 'Species not detected' : species.commonName;
+      const cleanSci = isUndetected ? 'New species detected, please input name' : species.scientificName;
+      setSpeciesCommon(cleanCommon);
+      setSpeciesScientific(cleanSci);
+      setCustomNameInput(isUndetected ? '' : species.commonName);
+      setCustomScientificInput(isUndetected ? '' : species.scientificName);
       setImageUrl(species.imageUrl);
-      setVisionConfidence(species.visionMatchConfidence || 98.6);
-      setAiEndangeredStatus(species.iucnStatus);
+      setVisionConfidence(species.visionMatchConfidence || (isUndetected ? 72 : 98.6));
+      setAiEndangeredStatus(isUndetected ? ('New Discovery' as any) : species.iucnStatus);
+      if (species.category === 'Flora' || species.category === 'Fauna') {
+        setCategory(species.category);
+      }
       if (species.vitalityStats) {
         setAiRiskPercentage(species.vitalityStats.extinctionModelRiskPercent);
         setAiExtinctionYear(`Year ${species.vitalityStats.extinctionHorizonYear}`);
@@ -230,6 +260,85 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
 
       const smartReportUrl = `https://biodex.app/report/${recordId}.pdf`;
 
+      const trimmedCustomName = customNameInput.trim();
+      const isCustomDiscovery = isDetectedUndetected || trimmedCustomName.length > 0;
+      const finalCommon = trimmedCustomName || (isDetectedUndetected ? 'Species not detected' : speciesCommon);
+      const finalScientific = customScientificInput.trim() || (isDetectedUndetected ? (trimmedCustomName ? `${trimmedCustomName} sp.` : 'New species detected, please input name') : speciesScientific);
+      const finalStatus: IUCNStatus = isDetectedUndetected ? ('Least Concern' as IUCNStatus) : aiEndangeredStatus;
+      const customId = `custom-spec-${Date.now()}`;
+      const finalSpeciesId = isCustomDiscovery && trimmedCustomName.length > 0 ? customId : (species?.id || baseSpecies.id);
+
+      // If student input a custom name, save to the database so it will be matched next time!
+      if (trimmedCustomName.length > 0) {
+        const customSpeciesData: SpeciesData = {
+          id: customId,
+          catalogNumber: `CUST-${Math.floor(100 + Math.random() * 900)}`,
+          slotNumber: `#CUST-${Math.floor(100 + Math.random() * 900)}`,
+          level: 1,
+          category: category,
+          subType: 'Custom Discovery',
+          commonName: finalCommon,
+          scientificName: finalScientific,
+          genderOrReproduction: category === 'Fauna' ? 'DIOECIOUS' : 'HERMAPHRODITIC',
+          imageUrl: imageUrl,
+          visionMatchConfidence: visionConfidence,
+          biodiversityRank: 5,
+          biodiversityScore: visionConfidence,
+          taxonomy: {
+            kingdom: category === 'Fauna' ? 'ANIMALIA' : 'PLANTAE',
+            order: 'CUSTOM',
+            family: 'Field Discovery',
+            genusSpecies: finalScientific.toUpperCase(),
+          },
+          iucnStatus: 'Least Concern',
+          iucnCriteria: 'CRITERIA A1',
+          habitat: habitatType || 'Field Observation',
+          historicalPop2001: 50000,
+          historicalPop2007: 45000,
+          historicalPop2012: 40000,
+          historicalPop2013: 38000,
+          historicalPop2019: 35000,
+          historicalPop2025: 30000,
+          currentPop2026: 30000,
+          predictedPop2031: 28000,
+          unmitigatedCollapseYear: 2045,
+          collapseFloor: 10000,
+          reboundGoal: 50000,
+          neuralConfidence: visionConfidence,
+          vitalityStats: {
+            populationHealthValue: '30,000 INDIV',
+            populationHealthPercent: 65,
+            populationHealthStatus: 'HEALTHY',
+            habitatIntegrityPercent: 70,
+            habitatIntegrityStatus: '70% INTACT',
+            pollinatorDensityPercent: 50,
+            pollinatorDensityStatus: '50% ACTIVE',
+            climateResiliencePercent: 75,
+            climateResilienceStatus: '75% STABLE',
+            extinctionModelRiskPercent: 15.0,
+            extinctionHorizonYear: 2050,
+          },
+          limitingFactors: {
+            habitatFragmentation: 20,
+            pollinatorDensity: 40,
+            climateVolatility: 30,
+          },
+          biologistMemo: {
+            entryRef: `BIO-${recordId}`,
+            reserveLocation: habitatType || 'Field Observation',
+            timeLogged: timestamp,
+            details: `Cataloged by naturalist ${studentGuestId}. New species registered to database.`,
+          },
+          curriculumDiscussion: `Field observation of ${finalCommon} recorded by naturalist ${studentGuestId}.`,
+          tags: [category, 'Custom Discovery', ...(detectedKeywords || [])],
+        };
+
+        saveCustomSpecies(customSpeciesData, detectedKeywords || []);
+        if (onRegisterCustomSpecies) {
+          onRegisterCustomSpecies(customSpeciesData);
+        }
+      }
+
       const record: SurveyRecord = {
         recordId,
         studentGuestId,
@@ -238,9 +347,9 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
         userDisplayName: session.userDisplayName,
         gradeLevel: gradeLevel as GradeLevel,
         timestamp,
-        speciesId: species?.id || baseSpecies.id,
-        speciesCommon,
-        speciesScientific,
+        speciesId: finalSpeciesId,
+        speciesCommon: finalCommon,
+        speciesScientific: finalScientific,
         imageUrl,
         visionConfidence: `${visionConfidence}% Match`,
         observedCount: Number(observedCount),
@@ -255,7 +364,7 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
         historicalPop2019: Number(hist2019),
         currentPop2026: Number(hist2025),
         predictedPop2031: Number(pred2031),
-        aiEndangeredStatus,
+        aiEndangeredStatus: finalStatus,
         aiExtinctionRiskPercentage: Number(aiRiskPercentage),
         aiProjectedExtinctionYear: aiExtinctionYear,
         smartReportUrl,
@@ -271,8 +380,8 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
         Student_Guest_ID: studentGuestId,
         Grade_Level: gradeLevel,
         Timestamp: timestamp,
-        Species_Name_Common: speciesCommon,
-        Species_Name_Scientific: speciesScientific,
+        Species_Name_Common: finalCommon,
+        Species_Name_Scientific: finalScientific,
         Image_URL: imageUrl,
         AI_Vision_Match_Confidence: visionConfidence,
         Observed_Count: Number(observedCount),
@@ -283,7 +392,7 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
         Historical_Pop_Baseline_2019: Number(hist2019),
         Historical_Pop_Baseline_2025: Number(hist2025),
         Prediction_Pop_Baseline_2031: Number(pred2031),
-        AI_Endangered_Status: aiEndangeredStatus,
+        AI_Endangered_Status: finalStatus,
         AI_Extinction_Risk_Percentage: Number(aiRiskPercentage),
         AI_Projected_Extinction_Year: aiExtinctionYear,
         Smart_Report_URL: smartReportUrl,
@@ -348,55 +457,152 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
             <div className="relative aspect-[4/3] w-full bg-slate-100">
               <img
                 src={imageUrl}
-                alt={speciesCommon}
+                alt={customNameInput.trim() || speciesCommon}
                 className="w-full h-full object-cover"
               />
               {/* Optical Badge */}
               <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-200/80 shadow-xs flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className={`w-1.5 h-1.5 rounded-full ${isDetectedUndetected && !customNameInput.trim() ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                 <span className="font-mono text-[11px] font-semibold text-slate-800">
-                  {visionConfidence}% MATCH
+                  {isDetectedUndetected && !customNameInput.trim() ? 'NEW SPECIMEN' : `${visionConfidence}% MATCH`}
                 </span>
               </div>
             </div>
 
             {/* Identity Details */}
-            <div className="p-4 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h1 className="font-bold text-slate-900 text-lg leading-tight">
-                    {speciesCommon}
-                  </h1>
-                  <p className="text-xs text-slate-500 italic mt-0.5">
-                    {speciesScientific}
-                  </p>
+            {(() => {
+              const displayCommon = customNameInput.trim() || (isDetectedUndetected ? 'Species not detected' : speciesCommon);
+              const displayScientific =
+                customScientificInput.trim() ||
+                (customNameInput.trim()
+                  ? `${customNameInput.trim()} sp.`
+                  : (speciesScientific === 'New species detected, please input name' || isUnidentifiedSpeciesName(speciesScientific)
+                      ? 'New species detected, please input name'
+                      : speciesScientific));
+              const isDiscovery = isDetectedUndetected || aiEndangeredStatus === 'New Discovery' || aiEndangeredStatus === 'Not Evaluated';
+              return (
+                <div className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h1 className="font-bold text-slate-900 text-lg leading-tight">
+                        {displayCommon}
+                      </h1>
+                      <p className="text-xs text-slate-500 italic mt-0.5">
+                        {displayScientific}
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold shrink-0 border ${
+                      isDiscovery
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {isDiscovery ? 'New Discovery' : aiEndangeredStatus}
+                    </span>
+                  </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                  {aiEndangeredStatus}
+              );
+            })()}
+          </div>
+
+          {/* STUDENT DISCOVERY / SPECIES NAME INPUT CARD */}
+          <div className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-3.5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                  {isDetectedUndetected ? 'New Species Detected — Name Your Discovery' : 'Species Classification'}
                 </span>
+              </div>
+              <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Auto-matches future scans
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                {isDetectedUndetected ? 'Please input species name:' : 'Common Name:'}
+              </label>
+              <input
+                type="text"
+                value={customNameInput}
+                onChange={(e) => {
+                  setCustomNameInput(e.target.value);
+                  if (e.target.value.trim()) {
+                    setSpeciesCommon(e.target.value.trim());
+                  }
+                }}
+                placeholder={isDetectedUndetected ? 'e.g. Painted Grasshopper, Prairie Indigo...' : 'Species common name...'}
+                className="w-full h-10 px-3 rounded-xl border border-emerald-300/80 bg-white text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
+              />
+              {isDetectedUndetected && !customNameInput.trim() && (
+                <p className="text-[11px] text-emerald-700 mt-1 font-medium">
+                  💡 Type a name above to register this discovery to the database so future scans will recognize it.
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Category</label>
+                <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCategory('Flora')}
+                    className={`flex-1 py-1 text-xs font-semibold rounded-md transition-all ${
+                      category === 'Flora' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Flora (Plant)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategory('Fauna')}
+                    className={`flex-1 py-1 text-xs font-semibold rounded-md transition-all ${
+                      category === 'Fauna' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Fauna (Animal)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Scientific / Nickname (Optional)</label>
+                <input
+                  type="text"
+                  value={customScientificInput}
+                  onChange={(e) => {
+                    setCustomScientificInput(e.target.value);
+                    if (e.target.value.trim()) {
+                      setSpeciesScientific(e.target.value.trim());
+                    }
+                  }}
+                  placeholder={customNameInput.trim() ? `${customNameInput.trim()} sp.` : 'Scientific tag...'}
+                  className="w-full h-[34px] px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
+                />
               </div>
             </div>
           </div>
 
           {/* SCANNABLE KEY TELEMETRY (2-col grid) */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Species Identity (Replaces Count as requested) */}
+            {/* Species Identity */}
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono text-emerald-600 uppercase tracking-wider font-semibold">
                   Species Name
                 </span>
                 <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {baseSpecies.category || 'Fauna'}
+                  {category || baseSpecies.category || 'Fauna'}
                 </span>
               </div>
               <div className="mt-1">
-                <span className="text-base font-bold text-slate-900 block truncate" title={speciesCommon}>
-                  {speciesCommon}
+                <span className="text-base font-bold text-slate-900 block truncate" title={customNameInput.trim() || (isDetectedUndetected ? 'Species not detected' : speciesCommon)}>
+                  {customNameInput.trim() || (isDetectedUndetected ? 'Species not detected' : speciesCommon)}
                 </span>
               </div>
-              <span className="text-xs text-slate-500 italic mt-0.5 block truncate" title={speciesScientific}>
-                {speciesScientific}
+              <span className="text-xs text-slate-500 italic mt-0.5 block truncate" title={customScientificInput.trim() || (customNameInput.trim() ? `${customNameInput.trim()} sp.` : (speciesScientific === 'New species detected, please input name' || isUnidentifiedSpeciesName(speciesScientific) ? 'New species detected, please input name' : speciesScientific))}>
+                {customScientificInput.trim() || (customNameInput.trim() ? `${customNameInput.trim()} sp.` : (speciesScientific === 'New species detected, please input name' || isUnidentifiedSpeciesName(speciesScientific) ? 'New species detected, please input name' : speciesScientific))}
               </span>
             </div>
 

@@ -210,7 +210,8 @@ export interface StudentSession {
   firebaseUid?: string;
   userEmail?: string;
   userDisplayName?: string;
-  authProvider?: 'guest' | 'google';
+  authProvider?: 'guest' | 'google' | 'manager';
+  isManager?: boolean;
 }
 
 export type ChatRole = 'field_ecologist' | 'extinction_modeler' | 'taxonomy_expert';

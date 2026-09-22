@@ -18,6 +18,11 @@ import {
   INITIAL_SPECIES_CATALOG,
   INITIAL_DEFAULT_SURVEY_RECORD,
 } from './data/species';
+import {
+  getFullSpeciesCatalog,
+  saveCustomSpecies,
+  isUnidentifiedSpeciesName,
+} from './utils/customSpeciesDB';
 import { INITIAL_HABITATS } from './data/habitats';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
@@ -43,6 +48,42 @@ import { soundFX } from './utils/audio';
 import { calculateActualPVAPrediction } from './utils/pvaPredictionEngine';
 import { CheckCircle2 } from 'lucide-react';
 import { SupportedLanguage, SUPPORTED_LANGUAGES, getSavedLanguage, saveLanguage } from './utils/i18n';
+
+const DELETED_RECORDS_KEY = 'biodex_deleted_records';
+const SURVEY_RECORDS_KEY = 'biodex_survey_records';
+
+function getDeletedRecordIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_RECORDS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDeletedRecordId(id: string) {
+  try {
+    const set = getDeletedRecordIds();
+    set.add(id);
+    localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+function getStoredSurveyRecords(): SurveyRecord[] {
+  const deleted = getDeletedRecordIds();
+  try {
+    const raw = localStorage.getItem(SURVEY_RECORDS_KEY);
+    if (raw) {
+      const records: SurveyRecord[] = JSON.parse(raw);
+      const filtered = records.filter((r) => !deleted.has(r.recordId));
+      if (filtered.length > 0) return filtered;
+    }
+  } catch {}
+  if (deleted.has(INITIAL_DEFAULT_SURVEY_RECORD.recordId)) {
+    return [];
+  }
+  return [INITIAL_DEFAULT_SURVEY_RECORD];
+}
 
 export default function App() {
   // Theme selection: ruby, emerald, gold, slate, beige
@@ -80,9 +121,12 @@ export default function App() {
   const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
   const [isInitialAfterSplash, setIsInitialAfterSplash] = useState(false);
 
-  // Species catalog and active specimen
-  const [catalog, setCatalog] = useState<SpeciesData[]>(INITIAL_SPECIES_CATALOG);
-  const [currentSpecies, setCurrentSpecies] = useState<SpeciesData>(INITIAL_SPECIES_CATALOG[0]);
+  // Species catalog and active specimen - loads built-in and custom registered species
+  const [catalog, setCatalog] = useState<SpeciesData[]>(getFullSpeciesCatalog);
+  const [currentSpecies, setCurrentSpecies] = useState<SpeciesData>(() => {
+    const list = getFullSpeciesCatalog();
+    return list[0] || INITIAL_SPECIES_CATALOG[0];
+  });
 
   // Habitats & Map Geo-Spatial State
   const [habitats, setHabitats] = useState<Habitat[]>(INITIAL_HABITATS);
@@ -99,14 +143,19 @@ export default function App() {
     invasivePlantRemovalRate: 60,
   });
 
-  // Survey Records Buffer (PBR list for export and Firestore sync)
-  const [surveyRecords, setSurveyRecords] = useState<SurveyRecord[]>([
-    INITIAL_DEFAULT_SURVEY_RECORD,
-  ]);
+  // Survey Records Buffer (PBR list for export and Firestore sync) - persistent & blacklist-filtered
+  const [surveyRecords, setSurveyRecords] = useState<SurveyRecord[]>(getStoredSurveyRecords);
+
+  // Sync surveyRecords to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(SURVEY_RECORDS_KEY, JSON.stringify(surveyRecords));
+    } catch {}
+  }, [surveyRecords]);
 
   // Active Survey Record for PVA Simulation & Real-time Extinction Graph
   const [activeSimulationRecord, setActiveSimulationRecord] = useState<SurveyRecord | null>(
-    INITIAL_DEFAULT_SURVEY_RECORD
+    () => surveyRecords[0] || null
   );
 
   // AI Specimen PVA Analysis state
@@ -128,16 +177,17 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3800);
   };
 
-  // Initial Firestore synchronization & live real-time listener
+  // Initial Firestore synchronization & live real-time listener (filters out deleted items)
   useEffect(() => {
     let isMounted = true;
 
     // Fetch existing records from Firestore
     fetchSurveyRecordsFromFirestore().then((cloudRecords) => {
       if (isMounted && cloudRecords.length > 0) {
+        const deleted = getDeletedRecordIds();
         setSurveyRecords((prev) => {
           const ids = new Set(prev.map((r) => r.recordId));
-          const newUnique = cloudRecords.filter((r) => !ids.has(r.recordId));
+          const newUnique = cloudRecords.filter((r) => !ids.has(r.recordId) && !deleted.has(r.recordId));
           return [...newUnique, ...prev];
         });
       }
@@ -146,11 +196,14 @@ export default function App() {
     // Real-time listener for classroom multi-user surveys
     const unsubscribe = subscribeToSurveys((updatedSurveys) => {
       if (isMounted && updatedSurveys.length > 0) {
+        const deleted = getDeletedRecordIds();
         setSurveyRecords((prev) => {
           const map = new Map<string, SurveyRecord>();
-          updatedSurveys.forEach((r) => map.set(r.recordId, r));
+          updatedSurveys.forEach((r) => {
+            if (!deleted.has(r.recordId)) map.set(r.recordId, r);
+          });
           prev.forEach((r) => {
-            if (!map.has(r.recordId)) map.set(r.recordId, r);
+            if (!map.has(r.recordId) && !deleted.has(r.recordId)) map.set(r.recordId, r);
           });
           return Array.from(map.values()).sort(
             (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -401,7 +454,7 @@ export default function App() {
     showToast(`Navigated to ${targetHab.name}. Ready to capture diversity!`);
   };
 
-  // When a student classifies a custom uploaded image
+  // When a student classifies or names a species
   const handleSpeciesIdentified = (newSpeciesData: SpeciesData) => {
     setCurrentSpecies(newSpeciesData);
     setCatalog((prev) => {
@@ -411,20 +464,34 @@ export default function App() {
       }
       return [newSpeciesData, ...prev];
     });
+
+    // If it's a real species name (not undetected placeholder), persist to custom species database
+    if (!isUnidentifiedSpeciesName(newSpeciesData.commonName)) {
+      saveCustomSpecies(newSpeciesData, newSpeciesData.tags || []);
+    }
+
     showToast(`Computer Vision Verified: ${newSpeciesData.commonName} (${newSpeciesData.visionMatchConfidence}% Conf)`);
   };
 
-  // Delete survey record from Firestore & local buffer
+  // Delete survey record from Firestore, localStorage & state buffer
   const handleDeleteSurveyRecord = async (recordId: string) => {
     soundFX.playCancel();
+    saveDeletedRecordId(recordId);
+    setSurveyRecords((prev) => {
+      const next = prev.filter((r) => r.recordId !== recordId);
+      try {
+        localStorage.setItem(SURVEY_RECORDS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    if (activeSimulationRecord?.recordId === recordId) {
+      setActiveSimulationRecord(null);
+    }
+    showToast(`Removed observation ${recordId} from Biodiversity Register.`);
     try {
       await deleteSurveyRecordFromFirestore(recordId);
-      setSurveyRecords((prev) => prev.filter((r) => r.recordId !== recordId));
-      showToast(`Removed observation ${recordId} from Biodiversity Register.`);
     } catch (err) {
-      console.error('Failed to delete observation:', err);
-      setSurveyRecords((prev) => prev.filter((r) => r.recordId !== recordId));
-      showToast(`Removed observation ${recordId} locally.`);
+      console.warn('Could not delete from Firestore:', err);
     }
   };
 
@@ -604,7 +671,7 @@ export default function App() {
 
         {activeTab === 'reports' && (
           <ReportsView
-            currentRecord={surveyRecords[0] || INITIAL_DEFAULT_SURVEY_RECORD}
+            currentRecord={surveyRecords[0] || null}
             session={session}
             allRecords={surveyRecords}
             onReturnToScanner={() => {
