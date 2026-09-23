@@ -48,7 +48,7 @@ async function generateWithFallbackModels(
   ai: GoogleGenAI,
   paramsBuilder: (modelName: string) => any
 ): Promise<{ response: any; model: string }> {
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
   for (const m of models) {
     try {
       const res = await ai.models.generateContent(paramsBuilder(m));
@@ -169,16 +169,28 @@ CRITICAL INSTRUCTIONS:
    - If it depicts a common flower (like rose, orchid, sunflower), IDENTIFY EXACTLY WHAT IT IS.
    - Do NOT default to sunflower or vending machine!
 2. If it is a plant, fruit, fungus, or animal, provide its authentic binomial scientific name (Genus species), taxonomic hierarchy (kingdom, phylum, class, order, family, genus), and IUCN conservation status.
-3. Provide 4 specific visual diagnostic features clearly visible in this specific photo (e.g., surface texture, tepal/petal symmetry, anther morphology, venation, contour, pigmentation).
-4. Provide a rich 2-3 sentence Google Lens overview explaining the subject, where it originates, its characteristics, and why it is significant.
-5. Provide its ecological or agricultural role, an engaging did-you-know fact, and 2 visually similar lookalikes with specific visual distinctions.
+3. Determine endangered risk: whether the species is endangered or likely to become endangered (e.g. "Endangered - High Risk of Extinction", "Vulnerable - In Decline", "Near Threatened - Under Monitoring", or "Secure / Least Concern").
+4. Specify climate/biome classification (e.g., Tropical, Subtropical, Temperate, Arid/Desert, Alpine, Mediterranean).
+5. Specify medicinal properties and therapeutic uses (e.g. active healing compounds, soothing properties, anti-inflammatory, digestive aid, or "Non-medicinal / Ornamental" if none).
+6. Specify where and how the plant/specimen is commonly used (e.g. culinary spice, skincare cosmetics, herbal tea, indoor air purification, traditional craftsmanship, agroforestry).
+7. List 2 to 4 major countries or geographic regions where it is predominantly found.
+8. Provide 2-3 fascinating, memorable, and educational facts about the species.
+9. Provide 4 specific visual diagnostic features clearly visible in this specific photo (e.g., surface texture, tepal/petal symmetry, anther morphology, venation, contour, pigmentation).
+10. Provide a rich 2-3 sentence Google Lens overview explaining the subject, where it originates, its characteristics, and why it is significant.
 
 Return a valid JSON object ONLY with the following schema:
 {
-  "commonName": "string (Exact common name of what is actually in the photo, e.g. Stargazer Lily, Asiatic Lily, Banana, Sunflower)",
+  "commonName": "string (Exact common name)",
   "scientificName": "string (Genus and species binomial, e.g. Lilium orientalis, Musa acuminata)",
   "confidence": number (visual match percentage between 89.0 and 99.8),
   "description": "string (Engaging 2-3 sentence Google Lens overview)",
+  "endangeredStatus": "string (e.g. Endangered - High Risk of Extinction | Vulnerable | Near Threatened | Secure / Least Concern)",
+  "conservationStatus": "string (e.g. IUCN Red List: Endangered (EN) | Vulnerable (VU) | Least Concern (LC))",
+  "climateZone": "string (e.g. Tropical & Subtropical | Temperate Grassland | Arid & Semi-Desert | Mediterranean)",
+  "medicinalProperties": "string (Detailed medicinal qualities, bioactive compounds, and therapeutic applications)",
+  "commonUses": "string (Where and how the plant is commonly used: culinary, cosmetic, decorative, agroforestry, cultural)",
+  "predominantRegions": ["string", "string", "string"],
+  "interestingFacts": ["string", "string"],
   "visualFeatures": ["string", "string", "string", "string"],
   "kingdom": "string",
   "phylum": "string",
@@ -203,8 +215,8 @@ CRITICAL AUDIENCE & LANGUAGE INSTRUCTIONS:
 - Explain technical words simply (e.g. explain that PVA stands for Population Viability Analysis - a future population survival forecast).
 - Identify the exact fruit, vegetable, plant, or animal shown in the image (e.g., Grapes, Strawberry, Tomato, Apple, Banana, Cucumber, Carrot, etc.). Never default or guess Apple if another fruit or vegetable is shown!`;
 
-        // Try Gemini models in order of reliability
-        const visionModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        // Try Gemini models in order of reliability and speed
+        const visionModels = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
         let lastVisionError = '';
         for (const modelName of visionModels) {
           try {

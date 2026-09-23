@@ -20,11 +20,18 @@ import {
   ArrowUpDown,
   User,
   Check,
+  ShieldAlert,
+  ShieldCheck,
+  SunMedium,
+  HeartPulse,
+  Globe2,
+  Compass,
+  Leaf,
 } from 'lucide-react';
 import { YearWiseSurveyModal } from './YearWiseSurveyModal';
 import { ScannedSpecimenFormModal } from './ScannedSpecimenFormModal';
 
-import { INITIAL_SPECIES_CATALOG } from '../data/species';
+import { INITIAL_SPECIES_CATALOG, enrichSpeciesWithEducationalData } from '../data/species';
 
 interface BioDexViewProps {
   currentSpecies?: SpeciesData;
@@ -63,8 +70,8 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
   const [isYearSurveyModalOpen, setIsYearSurveyModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SurveyRecord | null>(null);
 
-  const safeCatalog = Array.isArray(catalog) && catalog.length > 0 ? catalog : INITIAL_SPECIES_CATALOG;
-  const activeSpecies = currentSpecies || safeCatalog[0] || INITIAL_SPECIES_CATALOG[0];
+  const safeCatalog = (Array.isArray(catalog) && catalog.length > 0 ? catalog : INITIAL_SPECIES_CATALOG).map(enrichSpeciesWithEducationalData);
+  const activeSpecies = enrichSpeciesWithEducationalData(currentSpecies || safeCatalog[0] || INITIAL_SPECIES_CATALOG[0]);
 
   // Category counts
   const floraCount = safeCatalog.filter((s) => {
@@ -420,6 +427,146 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                   {activeSpecies?.currentPop2026?.toLocaleString() || '28.5k'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Comprehensive Botanical & Ecological Intelligence */}
+          {/* 1. Conservation & Extinction Risk */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {(activeSpecies?.iucnStatus && activeSpecies.iucnStatus.toLowerCase().includes('endangered')) ? (
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                  Conservation & Extinction Status
+                </h3>
+              </div>
+              <span className={`px-2.5 py-0.5 rounded-lg text-xs font-semibold border ${getStatusColor(activeSpecies?.iucnStatus)} font-sans`}>
+                {activeSpecies?.iucnStatus || 'Least Concern'}
+              </span>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs">
+              <div className="flex items-baseline justify-between">
+                <span className="text-slate-500 font-medium">Endangered Assessment:</span>
+                <span className="font-bold text-slate-900">
+                  {activeSpecies?.endangeredStatus || 'Monitored under biodiversity index'}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-slate-500 font-medium">Conservation Criteria:</span>
+                <span className="font-mono text-slate-700">
+                  {activeSpecies?.conservationStatus || `IUCN: ${activeSpecies?.iucnCriteria || 'Criteria A2'}`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Climate & Biome */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <SunMedium className="w-4 h-4 text-amber-500 shrink-0" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                Climate Zone & Habitat Biome
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200/80 flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5 text-amber-600" />
+                {activeSpecies?.climateZone || activeSpecies?.habitat || 'Tropical & Subtropical Biome'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed font-sans mt-0.5">
+              Adapted to specialized hydrological patterns, temperature ranges, and sunlight conditions characteristic of {activeSpecies?.climateZone ? activeSpecies.climateZone.toLowerCase() : 'temperate and subtropical grasslands'}.
+            </p>
+          </div>
+
+          {/* 3. Medicinal Properties & Uses */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <HeartPulse className="w-4 h-4 text-rose-500 shrink-0" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                Medicinal Properties & Therapeutic Uses
+              </h3>
+            </div>
+            <div className="bg-rose-50/50 rounded-xl p-3 border border-rose-100/80 text-xs text-slate-700 leading-relaxed font-sans">
+              {typeof activeSpecies?.medicinalProperties === 'string' ? (
+                activeSpecies.medicinalProperties
+              ) : Array.isArray(activeSpecies?.medicinalProperties) ? (
+                <ul className="list-disc pl-4 space-y-1">
+                  {activeSpecies.medicinalProperties.map((p, idx) => (
+                    <li key={idx}>{p}</li>
+                  ))}
+                </ul>
+              ) : (
+                'Contains natural secondary plant metabolites and antioxidants documented in herbal wellness and ecological studies.'
+              )}
+            </div>
+          </div>
+
+          {/* 4. Common & Practical Applications */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <Leaf className="w-4 h-4 text-emerald-600 shrink-0" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                Where & How It Is Commonly Used
+              </h3>
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed font-sans bg-slate-50 p-3 rounded-xl border border-slate-100">
+              {typeof activeSpecies?.commonUses === 'string'
+                ? activeSpecies.commonUses
+                : Array.isArray(activeSpecies?.commonUses)
+                ? activeSpecies.commonUses.join(', ')
+                : 'Cultivated and utilized across culinary recipes, herbal wellness, pollinator corridors, and conservation biology.'}
+            </p>
+          </div>
+
+          {/* 5. Geographic Distribution */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <Globe2 className="w-4 h-4 text-sky-600 shrink-0" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                Predominant Countries & Regions (2–4 Major)
+              </h3>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {(activeSpecies?.predominantRegions || ['North America', 'Eurasia', 'Neotropical Zones']).map((region, idx) => (
+                <span
+                  key={idx}
+                  className="px-3 py-1.5 rounded-xl bg-sky-50 text-sky-800 text-xs font-semibold border border-sky-200 flex items-center gap-1.5 shadow-2xs font-sans"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  {region}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 6. Fascinating Facts */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                Did You Know? (Interesting Facts)
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {(activeSpecies?.interestingFacts || [
+                activeSpecies?.curriculumDiscussion || 'Recorded in student field research ledger.',
+                'Provides high biological value supporting native pollinator networks.',
+              ]).map((fact, idx) => (
+                <div
+                  key={idx}
+                  className="bg-amber-50/60 rounded-xl p-3 border border-amber-200/60 flex items-start gap-2.5 text-xs text-slate-800 font-sans leading-relaxed"
+                >
+                  <span className="w-5 h-5 rounded-full bg-amber-200/80 text-amber-900 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <span>{fact}</span>
+                </div>
+              ))}
             </div>
           </div>
 

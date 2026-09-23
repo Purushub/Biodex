@@ -22,6 +22,13 @@ export interface GeminiVisionResult {
   family?: string;
   genus?: string;
   iucnStatus: string;
+  endangeredStatus?: string;
+  conservationStatus?: string;
+  climateZone?: string;
+  medicinalProperties?: string;
+  commonUses?: string;
+  predominantRegions?: string[];
+  interestingFacts?: string[];
   habitatType: string;
   keyThreats?: string;
   educationalNotes?: string;
@@ -69,22 +76,34 @@ export async function identifyWithGeminiDirect(
   const prompt = `You are Google Lens, the world's most accurate biological optical recognition AI.
 Examine this photograph specimen carefully.
 CRITICAL INSTRUCTIONS:
-1. Determine what organism, animal, bird, plant, flower, fruit, reptile, insect, or fungi is ACTUALLY depicted in this photograph.
-   - If the user is showing a photo of an animal or plant on a phone, laptop screen, or book, focus on the NATURAL SUBJECT (e.g. Brown Bear, Grizzly Bear, Wolf, Orchid, Lily, Hawk, Leopard, Tiger), NOT the screen or background!
+1. Determine what organism, plant, flower, fruit, reptile, insect, bird, animal, or fungi is ACTUALLY depicted in this photograph.
+   - If the user is showing a photo on a phone screen, laptop, or book, focus on the NATURAL SUBJECT (e.g. Aloe Vera, Orchid, Rose, Banana, Neem, Tulsi, Bear, Wolf, Tiger), NOT the screen or background!
    - Identify the exact species accurately with high confidence!
 2. Provide authentic binomial scientific name (Genus species), taxonomic hierarchy (kingdom, phylum, class, order, family, genus), and IUCN conservation status.
-3. Provide 4 specific visual diagnostic features clearly visible in this photo.
-4. Provide a rich 2-sentence overview written for students in simple, fun language.
-5. Provide its ecological role, a "did-you-know" fun fact, and 2 lookalikes with distinctions.
+3. Determine endangered risk: whether the species is endangered or likely to become endangered (e.g. "Endangered - High Risk of Extinction", "Vulnerable - In Decline", "Near Threatened - Under Monitoring", or "Secure / Least Concern").
+4. Specify climate/biome classification (e.g., Tropical, Subtropical, Temperate, Arid/Desert, Alpine, Mediterranean).
+5. Specify medicinal properties and therapeutic uses (e.g. active healing compounds, soothing properties, anti-inflammatory, digestive aid, or "Non-medicinal / Ornamental" if none).
+6. Specify where and how the plant/specimen is commonly used (e.g. culinary spice, skincare cosmetics, herbal tea, indoor air purification, traditional craftsmanship, agroforestry).
+7. List 2 to 4 major countries or geographic regions where it is predominantly found.
+8. Provide 2-3 fascinating, memorable, and educational facts about the species.
+9. Provide 4 specific visual diagnostic features visible in this photo.
+10. Provide an engaging 2-sentence overview written for students in simple, fun language.
 
 Return a valid JSON object ONLY with the following schema:
 {
-  "commonName": "string (Exact common name, e.g. Brown Bear, Grizzly Bear, Red-Tailed Hawk, Stargazer Lily)",
-  "scientificName": "string (Binomial name, e.g. Ursus arctos, Buteo jamaicensis)",
+  "commonName": "string (Exact common name)",
+  "scientificName": "string (Binomial name, e.g. Aloe vera, Platanthera praeclara)",
   "confidence": number (between 92.0 and 99.8),
   "description": "string (2-3 engaging sentences for students)",
+  "endangeredStatus": "string (e.g. Endangered - High Risk of Extinction | Vulnerable | Near Threatened | Secure / Least Concern)",
+  "conservationStatus": "string (e.g. IUCN Red List: Endangered (EN) | Vulnerable (VU) | Least Concern (LC))",
+  "climateZone": "string (e.g. Tropical & Subtropical | Temperate Grassland | Arid & Semi-Desert | Mediterranean)",
+  "medicinalProperties": "string (Detailed medicinal qualities, bioactive compounds, and therapeutic applications)",
+  "commonUses": "string (Where and how the plant is commonly used: culinary, cosmetic, decorative, agroforestry, cultural)",
+  "predominantRegions": ["string", "string", "string"],
+  "interestingFacts": ["string", "string"],
   "visualFeatures": ["string", "string", "string", "string"],
-  "kingdom": "string (e.g. ANIMALIA or PLANTAE)",
+  "kingdom": "string (e.g. PLANTAE or ANIMALIA)",
   "phylum": "string",
   "class": "string",
   "order": "string",
@@ -104,8 +123,8 @@ Return a valid JSON object ONLY with the following schema:
 }
 ${commonNameHint ? `Hint from camera sensor: ${commonNameHint}` : ''}`;
 
-  // Try Gemini models in order of capability and speed
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // Try verified, active Gemini models in order of capability and speed
+  const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
   let lastError = '';
 
   for (const model of models) {

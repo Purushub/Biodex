@@ -1,6 +1,199 @@
 import { SpeciesData, SurveyRecord } from '../types';
 
-export const INITIAL_SPECIES_CATALOG: SpeciesData[] = [
+export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesData {
+  if (!species) return species;
+  const common = (species.commonName || '').toLowerCase();
+  const scientific = (species.scientificName || '').toLowerCase();
+  const category = (species.category || 'Flora').toLowerCase();
+
+  let endangeredStatus = species.endangeredStatus;
+  let conservationStatus = species.conservationStatus;
+  let climateZone = species.climateZone;
+  let medicinalProperties = species.medicinalProperties;
+  let commonUses = species.commonUses;
+  let predominantRegions = species.predominantRegions;
+  let interestingFacts = species.interestingFacts;
+
+  if (common.includes('prairie orchid') || scientific.includes('praeclara')) {
+    endangeredStatus = endangeredStatus || 'Endangered - Critical Extinction Risk';
+    conservationStatus = conservationStatus || 'IUCN Red List: Endangered (EN, Criteria A2)';
+    climateZone = climateZone || 'Temperate Wet-Mesic Tallgrass Prairie';
+    medicinalProperties = medicinalProperties || 'Historically utilized in Indigenous Great Plains healing washes for dermatological relief; rich in secondary metabolites with mild antioxidant and anti-inflammatory attributes.';
+    commonUses = commonUses || 'Crucial ecological indicator of intact native tallgrass wetlands; protected under endangered botanical conservation treaties and habitat restoration programs.';
+    predominantRegions = predominantRegions || ['United States (Minnesota, North Dakota, Iowa)', 'Canada (Manitoba)'];
+    interestingFacts = interestingFacts || [
+      'Blooms release a sweet night fragrance specifically calibrated to attract nocturnal sphinx hawkmoths whose long tongues reach the 5cm nectar spurs.',
+      'Over 75% of its natural tallgrass prairie habitat was lost due to deep-soil agriculture and underground drainage alterations.'
+    ];
+  } else if (common.includes('monarch') || scientific.includes('plexippus')) {
+    endangeredStatus = endangeredStatus || 'Vulnerable - Migratory Decline';
+    conservationStatus = conservationStatus || 'IUCN Red List: Endangered / Vulnerable';
+    climateZone = climateZone || 'Temperate to Subtropical Migration Corridors';
+    medicinalProperties = medicinalProperties || 'Sequesters toxic cardenolides (cardiac glycosides) from milkweed sap, making caterpillars and adult butterflies unpalatable and noxious to birds.';
+    commonUses = commonUses || 'Global flagship ambassador for pollinator conservation, citizen science tracking, and international prairie flyway treaties.';
+    predominantRegions = predominantRegions || ['United States', 'Canada', 'Mexico (Oyamel Fir Reserves)', 'Australia & New Zealand'];
+    interestingFacts = interestingFacts || [
+      'Embarks on an extraordinary 4,800 km multi-generational migration from Canada to the high volcanic mountains of Mexico.',
+      'A female monarch can lay up to 500 eggs, each carefully placed one-by-one exclusively on the underside of fresh milkweed leaves.'
+    ];
+  } else if (common.includes('milkweed') || scientific.includes('asclepias')) {
+    endangeredStatus = endangeredStatus || 'Near Threatened in Prairie Biomes';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern (Keystone Nursery)';
+    climateZone = climateZone || 'Temperate & Subtropical Grasslands';
+    medicinalProperties = medicinalProperties || 'Traditional Indigenous poultices used milky latex sap for warts and ringworm; root extracts (Pleurisy root) historically served as a mild expectorant.';
+    commonUses = commonUses || 'Essential sole host nursery plant for monarch butterflies; silky seed floss historically gathered for buoyant life jacket insulation.';
+    predominantRegions = predominantRegions || ['United States', 'Canada', 'Central Europe (Naturalized)'];
+    interestingFacts = interestingFacts || [
+      'The silky hairs of milkweed seeds are hollow and coated with a natural wax, making them 6 times more buoyant than cork and warmer than wool.',
+      'During World War II, schoolchildren across the Midwest collected over 11 million pounds of milkweed pods to supply life jackets for the Navy!'
+    ];
+  } else if (common.includes('coneflower') || scientific.includes('echinacea')) {
+    endangeredStatus = endangeredStatus || 'Near Threatened in Wild Habitats';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern / Near Threatened in wild';
+    climateZone = climateZone || 'Temperate Prairie & Dry Savanna';
+    medicinalProperties = medicinalProperties || 'Widely recognized herbal immune booster rich in echinacosides and caffeic acid; clinically used to reduce duration of cold and upper respiratory symptoms.';
+    commonUses = commonUses || 'Formulated into herbal teas, lozenges, and dietary tinctures; planted in drought-resistant pollinator gardens for native bees.';
+    predominantRegions = predominantRegions || ['United States (Great Plains & Midwest)', 'Canada (Ontario, Saskatchewan)', 'Cultivated throughout Europe & Asia'];
+    interestingFacts = interestingFacts || [
+      'Its name Echinacea comes from the Greek "echinos" (hedgehog or sea urchin), describing the spiny central cone disk.',
+      'Deep taproots extend nearly 2 meters straight down into dry soil, surviving blistering droughts without supplemental water.'
+    ];
+  } else if (common.includes('lady\'s slipper') || scientific.includes('cypripedium')) {
+    endangeredStatus = endangeredStatus || 'Endangered - Strict Legal Protection';
+    conservationStatus = conservationStatus || 'IUCN Red List: Vulnerable / State Endangered';
+    climateZone = climateZone || 'Boreal & Cold Temperate Calcareous Fens';
+    medicinalProperties = medicinalProperties || 'Native Americans historically prepared a mild sedative tea from dried roots for anxiety and insomnia (known in folk medicine as American Valerian).';
+    commonUses = commonUses || 'Official state flower of Minnesota; premier flagship orchid for wetland fen conservation and orchid biology education.';
+    predominantRegions = predominantRegions || ['United States (Minnesota, Wisconsin, Michigan)', 'Canada (Ontario, Quebec)'];
+    interestingFacts = interestingFacts || [
+      'Takes 15 to 16 years from seed to produce its very first flower in the wild!',
+      'Relies on symbiotic mycorrhizal soil fungi to feed its microscopic seeds because orchid seeds carry zero nutrient reserves.'
+    ];
+  } else if (common.includes('banana') || scientific.includes('musa')) {
+    endangeredStatus = endangeredStatus || 'Wild Ancestors Endangered / Commercial Crops Secure';
+    conservationStatus = conservationStatus || 'IUCN Red List: Wild ancestors Endangered (EN), Cultivated varieties Abundant';
+    climateZone = climateZone || 'Humid Tropical & Subtropical Lowlands';
+    medicinalProperties = medicinalProperties || 'Packed with potassium, vitamin B6, and prebiotic dietary fiber; supports electrolyte balance, blood pressure regulation, and gut digestion.';
+    commonUses = commonUses || 'World’s most consumed fresh fruit; massive waterproof leaves are widely used across Asia as biodegradable plates and steaming wraps.';
+    predominantRegions = predominantRegions || ['India (largest producer)', 'Ecuador', 'Philippines', 'Brazil & Colombia'];
+    interestingFacts = interestingFacts || [
+      'Botanically, a banana is a berry, and the banana plant is not a tree at all—it is the world’s largest perennial herb!',
+      'Cavendish bananas have no seeds; each plant is a genetic clone propagated from root suckers.'
+    ];
+  } else if (common.includes('apple') || scientific.includes('malus')) {
+    endangeredStatus = endangeredStatus || 'Secure / Globally Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Temperate Continental & Maritime';
+    medicinalProperties = medicinalProperties || 'High in soluble pectin fiber, vitamin C, and quercetin polyphenols; lowers LDL cholesterol and promotes cardiovascular cellular health.';
+    commonUses = commonUses || 'Fresh eating, gourmet ciders, baking, applesauce, and commercial orchard agro-forestry.';
+    predominantRegions = predominantRegions || ['United States (Washington, New York)', 'China', 'Poland', 'Turkey & Italy'];
+    interestingFacts = interestingFacts || [
+      'Honeycrisp cells are twice the size of standard apples, exploding with pressurized sweet juice when you take a bite!',
+      'Apples float in water because 25% of their volume is air!'
+    ];
+  } else if (common.includes('tomato') || scientific.includes('lycopersicon') || scientific.includes('solanum')) {
+    endangeredStatus = endangeredStatus || 'Secure / Globally Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Warm Subtropical & Temperate';
+    medicinalProperties = medicinalProperties || 'Supercharged with lycopene, a potent lipid-soluble antioxidant linked to cardiovascular protection and cellular resilience against UV damage.';
+    commonUses = commonUses || 'Global culinary cornerstone (sauces, salads, pastes, soups) and high-yield hydroponic greenhouse horticulture.';
+    predominantRegions = predominantRegions || ['Italy', 'Spain', 'United States (California)', 'China & India'];
+    interestingFacts = interestingFacts || [
+      'Cooked tomatoes with olive oil provide up to 4 times more bioavailable lycopene than raw tomatoes!',
+      'Tomatoes were once nicknamed "love apples" in France and "poison apples" in 18th-century Britain.'
+    ];
+  } else if (common.includes('carrot') || scientific.includes('daucus')) {
+    endangeredStatus = endangeredStatus || 'Secure / Widely Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Temperate & Subtropical Cool Season';
+    medicinalProperties = medicinalProperties || 'Rich in beta-carotene which the human body converts into Vitamin A (retinol), vital for retinal night vision and immune defense.';
+    commonUses = commonUses || 'Culinary salads, stews, baby food, fresh juicing, and natural carotene beta-color extracts.';
+    predominantRegions = predominantRegions || ['China', 'United States (California)', 'Russia', 'Netherlands'];
+    interestingFacts = interestingFacts || [
+      'Original wild carrots were purple and yellow; modern orange carrots were selectively bred in 17th-century Holland.',
+      'The wild ancestor of the garden carrot is the common roadside wildflower known as Queen Anne’s Lace.'
+    ];
+  } else if (common.includes('cucumber') || scientific.includes('cucumis')) {
+    endangeredStatus = endangeredStatus || 'Secure / Globally Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Warm Subtropical & Temperate';
+    medicinalProperties = medicinalProperties || 'Contains 96% structured hydration water, caffeic acid, and silica; reduces puffiness, cools inflamed skin, and soothes digestion.';
+    commonUses = commonUses || 'Fresh salads, pickling, cooling spa cosmetic masks, and hydrating infused wellness beverages.';
+    predominantRegions = predominantRegions || ['China', 'Turkey', 'Iran', 'Russia & Spain'];
+    interestingFacts = interestingFacts || [
+      'The interior core of a cucumber can be up to 11°C (20°F) cooler than ambient temperature on a hot day!',
+      'Cucumbers originated over 3,000 years ago in the Himalayan foothills of India.'
+    ];
+  } else if (common.includes('aloe') || scientific.includes('barbadensis')) {
+    endangeredStatus = endangeredStatus || 'Secure / Extensively Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Arid, Semi-Desert & Tropical Dry';
+    medicinalProperties = medicinalProperties || 'Acemannan polysaccharides and glucomannans stimulate fibroblast collagen synthesis, soothe thermal burns, and hydrate skin layers.';
+    commonUses = commonUses || 'First-aid burn ointment, natural sunscreen lotions, moisturizing cosmetics, and gut-soothing dietary juices.';
+    predominantRegions = predominantRegions || ['Sudan & Arabian Peninsula', 'India', 'Mexico', 'North Africa & Mediterranean'];
+    interestingFacts = interestingFacts || [
+      'Revered by ancient Egyptian physicians as the "Plant of Immortality" and documented in the Ebers Papyrus from 1500 BCE.',
+      'Survives extended droughts by performing CAM photosynthesis, transpiring solely under cover of darkness.'
+    ];
+  } else if (common.includes('lotus') || scientific.includes('nelumbo')) {
+    endangeredStatus = endangeredStatus || 'Secure / Cultural Protection';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Tropical & Warm Subtropical Freshwater Wetlands';
+    medicinalProperties = medicinalProperties || 'Rhizomes and flower petals contain neferine and nuciferine alkaloids with cardioprotective, febrifuge, and calming therapeutic effects.';
+    commonUses = commonUses || 'Kamal kakdi culinary root vegetables in Asian cuisine, sacred religious ceremonies, and biological pond filtration.';
+    predominantRegions = predominantRegions || ['India', 'China', 'Vietnam', 'Japan & Thailand'];
+    interestingFacts = interestingFacts || [
+      'Its leaves exhibit the world-renowned "Lotus Effect" (nanoscale hydrophobic wax cones that instantly shed water and dirt).',
+      'Ancient lotus seeds recovered from dried peat beds in northeastern China germinated successfully after 1,300 years!'
+    ];
+  } else if (common.includes('sunflower') || scientific.includes('helianthus')) {
+    endangeredStatus = endangeredStatus || 'Secure / Widely Cultivated';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
+    climateZone = climateZone || 'Temperate to Warm Subtropical Plains';
+    medicinalProperties = medicinalProperties || 'Cold-pressed sunflower oil delivers high-potency vitamin E and phytosterols that protect arterial walls from oxidative stress.';
+    commonUses = commonUses || 'Healthy vegetable cooking oil, roasted dietary seeds, wild avian feed, and soil phytoremediation.';
+    predominantRegions = predominantRegions || ['Ukraine', 'Russia', 'United States (Kansas, Dakotas)', 'Argentina'];
+    interestingFacts = interestingFacts || [
+      'Immature sunflower flower heads perform solar tracking (heliotropism), turning from east to west every day with the sun!',
+      'Capable of bio-accumulating heavy metals and radionuclides, sunflowers were planted to decontaminate soil at Chernobyl and Fukushima.'
+    ];
+  } else if (category.includes('fauna') || category.includes('animal') || category.includes('insect') || category.includes('reptil')) {
+    endangeredStatus = endangeredStatus || (species.iucnStatus === 'Endangered' || species.iucnStatus === 'Critically Endangered' ? 'Endangered - Critical Population Threat' : species.iucnStatus === 'Vulnerable' ? 'Vulnerable - In Decline' : 'Secure / Monitoring');
+    conservationStatus = conservationStatus || `IUCN Red List: ${species.iucnStatus || 'Least Concern'}`;
+    climateZone = climateZone || (species.habitat ? `${species.habitat} Biome` : 'Temperate & Subtropical Eco-zone');
+    medicinalProperties = medicinalProperties || 'Wildlife species: produces biochemical adaptations and ecological regulatory balances; key subject in biomedical research and ecosystem health.';
+    commonUses = commonUses || 'Ecological apex or intermediate controller; bio-indicator of habitat health and biodiversity equilibrium.';
+    predominantRegions = predominantRegions || ['Regional Biosphere Reserve', 'Protected Wildlife Sanctuaries', 'Native Wild Habitats'];
+    interestingFacts = interestingFacts || [
+      `Plays an indispensable role maintaining demographic balance in its native ${species.habitat || 'ecosystem'}.`,
+      'Sensory adaptations allow high-precision foraging and micro-habitat navigation in challenging wild environments.'
+    ];
+  } else {
+    endangeredStatus = endangeredStatus || (species.iucnStatus === 'Endangered' ? 'Endangered - Rare Specimen' : species.iucnStatus === 'Vulnerable' ? 'Vulnerable' : 'Least Concern / Stable');
+    conservationStatus = conservationStatus || `IUCN Red List: ${species.iucnStatus || 'Least Concern'}`;
+    climateZone = climateZone || (species.habitat?.toLowerCase().includes('tropical') ? 'Tropical & Subtropical' : 'Temperate & Subtropical');
+    medicinalProperties = medicinalProperties || 'Contains bioactive plant metabolites, flavonoids, and natural antioxidants supporting herbal wellness and plant defense.';
+    commonUses = commonUses || 'Grown for botanical biodiversity, ecological pollination services, agricultural cultivation, or ornamental landscaping.';
+    predominantRegions = predominantRegions || ['Native Continental Biome', 'Temperate & Subtropical Flora Zones', 'Botanical Preserves'];
+    interestingFacts = interestingFacts || [
+      'Co-evolved with native pollinators to exchange rich nectar rewards for specialized pollen transfer.',
+      'Deep root networks prevent topsoil erosion and store atmospheric carbon deep in subterranean soil.'
+    ];
+  }
+
+  return {
+    ...species,
+    endangeredStatus,
+    conservationStatus,
+    climateZone,
+    medicinalProperties,
+    commonUses,
+    predominantRegions,
+    interestingFacts,
+  };
+}
+
+const RAW_INITIAL_SPECIES_CATALOG: SpeciesData[] = [
   {
     id: 'pl-001',
     catalogNumber: '001',
@@ -1344,6 +1537,8 @@ export const INITIAL_SPECIES_CATALOG: SpeciesData[] = [
     curriculumDiscussion: 'Monitor lizards are cold-blooded ectotherms that bask on warm stone walls in the morning to fuel their muscles for hunting!',
   },
 ];
+
+export const INITIAL_SPECIES_CATALOG: SpeciesData[] = RAW_INITIAL_SPECIES_CATALOG.map(enrichSpeciesWithEducationalData);
 
 export const INITIAL_DEFAULT_SURVEY_RECORD: SurveyRecord = {
   recordId: 'REC-2026-8901',

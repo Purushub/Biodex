@@ -9,8 +9,9 @@ import {
   GoogleLensIdentification,
   ChassisTheme,
 } from '../types';
-import { INITIAL_SPECIES_CATALOG } from '../data/species';
+import { INITIAL_SPECIES_CATALOG, enrichSpeciesWithEducationalData } from '../data/species';
 import { soundFX } from '../utils/audio';
+import { SpecimenDossierModal } from './SpecimenDossierModal';
 import {
   Zap,
   Image as ImageIcon,
@@ -119,6 +120,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [showSpecimenDrawer, setShowSpecimenDrawer] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
   const [capturedSnapshotUrl, setCapturedSnapshotUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [aiModelStatus, setAiModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -215,19 +217,34 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const captureFrameFromVideo = (): { snapshot: string; colorHint: string; avgRgb: { r: number; g: number; b: number } } | null => {
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       try {
+        const origW = videoRef.current.videoWidth;
+        const origH = videoRef.current.videoHeight;
+        const maxDim = 768;
+        let targetW = origW;
+        let targetH = origH;
+        if (origW > maxDim || origH > maxDim) {
+          if (origW >= origH) {
+            targetW = maxDim;
+            targetH = Math.round((origH * maxDim) / origW);
+          } else {
+            targetH = maxDim;
+            targetW = Math.round((origW * maxDim) / origH);
+          }
+        }
+
         const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
+        canvas.width = targetW;
+        canvas.height = targetH;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-          const snapshot = canvas.toDataURL('image/jpeg', 0.88);
+          ctx.drawImage(videoRef.current, 0, 0, targetW, targetH);
+          const snapshot = canvas.toDataURL('image/jpeg', 0.82);
 
           // Sample center reticle region for optical chromatic analysis
-          const sw = Math.min(260, Math.floor(canvas.width * 0.45));
-          const sh = Math.min(260, Math.floor(canvas.height * 0.45));
-          const sx = Math.floor((canvas.width - sw) / 2);
-          const sy = Math.floor((canvas.height - sh) / 2);
+          const sw = Math.min(260, Math.floor(targetW * 0.45));
+          const sh = Math.min(260, Math.floor(targetH * 0.45));
+          const sx = Math.floor((targetW - sw) / 2);
+          const sy = Math.floor((targetH - sh) / 2);
 
           let rTotal = 0, gTotal = 0, bTotal = 0, count = 0;
           try {
@@ -276,7 +293,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 2;
         ctx.strokeRect(120, 80, 400, 320);
-        const snapshot = canvas.toDataURL('image/jpeg', 0.88);
+        const snapshot = canvas.toDataURL('image/jpeg', 0.82);
         return { snapshot, colorHint: 'natural', avgRgb: { r: 120, g: 120, b: 120 } };
       }
     } catch {}
@@ -305,11 +322,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     // First check if matches any user-registered custom species in database
     const customMatch = findMatchingCustomSpecies(common);
     if (customMatch) {
-      return {
+      return enrichSpeciesWithEducationalData({
         ...customMatch,
         imageUrl: imageSrc,
         visionMatchConfidence: Math.max(conf, 96),
-      };
+      });
     }
 
     // If matches an existing catalog entry by common or scientific name, enrich it
@@ -322,15 +339,15 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     );
 
     if (catalogMatch) {
-      return {
+      return enrichSpeciesWithEducationalData({
         ...catalogMatch,
         imageUrl: imageSrc,
         visionMatchConfidence: conf,
-      };
+      });
     }
 
     // Otherwise generate dynamic SpeciesData directly from Gemini's identification
-    return {
+    const dynamicSpecies: SpeciesData = {
       id: `specimen-${Date.now()}`,
       catalogNumber: `${Math.floor(100 + Math.random() * 900)}`,
       slotNumber: `#SP-${Math.floor(100 + Math.random() * 900)}`,
@@ -352,6 +369,13 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       },
       iucnStatus: iucn,
       iucnCriteria: 'CRITERIA A1',
+      endangeredStatus: rawData?.endangeredStatus,
+      conservationStatus: rawData?.conservationStatus,
+      climateZone: rawData?.climateZone || rawData?.habitatType,
+      medicinalProperties: rawData?.medicinalProperties,
+      commonUses: rawData?.commonUses,
+      predominantRegions: Array.isArray(rawData?.predominantRegions) ? rawData.predominantRegions : undefined,
+      interestingFacts: Array.isArray(rawData?.interestingFacts) ? rawData.interestingFacts : rawData?.googleLensFact ? [rawData.googleLensFact] : undefined,
       habitat: rawData?.habitatType || selectedHabitat || 'Grassland Biome',
       historicalPop2001: 75000,
       historicalPop2007: 68000,
@@ -387,6 +411,8 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       },
       curriculumDiscussion: rawData?.description || `Live field specimen identified as ${common}.`,
     };
+
+    return enrichSpeciesWithEducationalData(dynamicSpecies);
   };
 
   // Shutter Button Capture & AI Detection Flow (MobileNet + Server Enrichment)
@@ -402,13 +428,13 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     }
 
     try {
-      // Step 1: Run MobileNet classification in-browser (used in TensorFlow mode, or as hint for Gemini mode)
+      // Step 1: Run MobileNet classification in-browser only if in tensorflow mode (skips CPU lag in Gemini AI mode!)
       let mobilenetHint = '';
       let mobilenetCategory: 'Flora' | 'Fauna' | 'Object' | 'Unknown' = 'Unknown';
       let mobilenetConfidence = 0;
       let mobilenetPredictions: ClassificationResult[] = [];
 
-      if (videoRef.current && isModelReady()) {
+      if (scanMode === 'tensorflow' && videoRef.current && isModelReady()) {
         try {
           const predictions = await classifyImage(videoRef.current, 5);
           const mapped = mapToSpeciesHint(predictions);
@@ -418,7 +444,6 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
           mobilenetPredictions = mapped.allPredictions;
           setLastDetectionKeywords(predictions.map((p) => p.className));
           console.log(`[BioDex AI] MobileNet predictions (mode: ${scanMode}):`, predictions);
-          console.log('[BioDex AI] Best match:', mobilenetHint, `(${mobilenetConfidence}%, ${mobilenetCategory})`);
         } catch (mlErr) {
           console.warn('[BioDex AI] MobileNet classification note:', mlErr);
         }
@@ -427,11 +452,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       // Check if MobileNet directly matches a previously registered custom species
       const customMatch = findMatchingCustomSpecies(mobilenetHint, mobilenetPredictions);
       if (customMatch && scanMode === 'tensorflow' && snapshot) {
-        const detected: SpeciesData = {
+        const detected: SpeciesData = enrichSpeciesWithEducationalData({
           ...customMatch,
           imageUrl: snapshot,
           visionMatchConfidence: Math.max(mobilenetConfidence, 96.5),
-        };
+        });
         setConfidenceScore(detected.visionMatchConfidence);
         setActiveSpecimen(detected);
         onSpeciesIdentified(detected);
@@ -444,7 +469,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       if (snapshot && captureResult) {
         let apiData: any = null;
 
-        // If in AI Scan (Gemini) mode, run direct Gemini client first
+        // If in AI Scan (Gemini) mode, run direct Gemini client first (immediate execution, no MobileNet lag!)
         if (scanMode === 'gemini') {
           try {
             console.log('[BioDex AI] Calling Gemini Vision directly...');
@@ -937,14 +962,14 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             {/* Sheet Handle */}
             <button
               type="button"
-              onClick={() => setShowSpecimenDrawer(true)}
+              onClick={() => setIsDossierModalOpen(true)}
               className="w-10 h-1 bg-slate-300 hover:bg-slate-400 rounded-full mx-auto mb-3 block transition-colors cursor-pointer"
-              aria-label="Open Specimen Catalog Drawer"
+              aria-label="Open Specimen Dossier Modal"
             />
 
-            {/* Species Header & Stepper */}
-            <div className="flex items-center justify-between gap-3 mb-3 pr-6">
-              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowSpecimenDrawer(true)}>
+            {/* Species Header & Badges */}
+            <div className="flex items-center justify-between gap-3 mb-2 pr-6 cursor-pointer" onClick={() => setIsDossierModalOpen(true)}>
+              <div className="flex-1 min-w-0">
                 <h1 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight truncate font-sans">
                   {activeSpecimen.commonName}
                 </h1>
@@ -953,7 +978,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                 </p>
               </div>
 
-              {/* Species Classification Badge (Replaced count stepper as requested) */}
+              {/* Species Classification Badge */}
               <div className="flex flex-col items-end shrink-0">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                   {confidenceScore.toFixed(1)}% MATCH
@@ -964,18 +989,86 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               </div>
             </div>
 
-            {/* Two Quick Action Buttons: BioDex & Predict */}
-            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+            {/* Key Educational Badges: Climate, Endangered Status, Regions */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[11px] font-sans">
+              {activeSpecimen.climateZone && (
+                <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 font-semibold border border-amber-200/60 flex items-center gap-1">
+                  <span>☀️</span>
+                  <span className="truncate max-w-[140px]">{activeSpecimen.climateZone}</span>
+                </span>
+              )}
+
+              {activeSpecimen.endangeredStatus && (
+                <span className={`px-2 py-0.5 rounded-lg font-semibold border flex items-center gap-1 ${
+                  activeSpecimen.endangeredStatus.toLowerCase().includes('endangered')
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : activeSpecimen.endangeredStatus.toLowerCase().includes('vulnerable')
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  <span>{activeSpecimen.endangeredStatus.toLowerCase().includes('endangered') ? '⚠️' : '🛡️'}</span>
+                  <span className="truncate max-w-[150px]">{activeSpecimen.endangeredStatus}</span>
+                </span>
+              )}
+
+              {activeSpecimen.predominantRegions && activeSpecimen.predominantRegions.length > 0 && (
+                <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 font-medium border border-sky-200/60 flex items-center gap-1">
+                  <span>🌍</span>
+                  <span className="truncate max-w-[130px]">{activeSpecimen.predominantRegions[0]}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Quick Educational Synopsis Snippet */}
+            {(activeSpecimen.medicinalProperties || activeSpecimen.commonUses) && (
+              <div
+                onClick={() => setIsDossierModalOpen(true)}
+                className="bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-2.5 mb-3 border border-slate-100 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-1">
+                  <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    Botanical Properties & Uses
+                  </span>
+                  <span className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5">
+                    Full Dossier <ChevronRight className="w-3 h-3" />
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 font-sans line-clamp-2 leading-relaxed">
+                  {typeof activeSpecimen.medicinalProperties === 'string'
+                    ? activeSpecimen.medicinalProperties
+                    : typeof activeSpecimen.commonUses === 'string'
+                    ? activeSpecimen.commonUses
+                    : activeSpecimen.biologistMemo?.details || 'Tap to explore full botanical and pharmacological profile.'}
+                </p>
+              </div>
+            )}
+
+            {/* Three Action Buttons: Full Dossier, BioDex, Predict */}
+            <div className="grid grid-cols-3 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  soundFX.playClick();
+                  setIsDossierModalOpen(true);
+                }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 font-bold text-xs border border-emerald-200/80 transition-all cursor-pointer font-sans"
+                title="Open comprehensive botanical dossier"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="truncate">Dossier</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
                   soundFX.playClick();
                   if (onNavigateToTab) onNavigateToTab('biodex');
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] transition-all text-slate-800 font-bold text-xs border border-slate-200/80 cursor-pointer font-sans"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] transition-all text-slate-800 font-bold text-xs border border-slate-200/80 cursor-pointer font-sans"
               >
-                <BookOpen className="w-4 h-4 text-emerald-600" />
-                <span>BioDex</span>
+                <ClipboardList className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                <span className="truncate">BioDex</span>
               </button>
 
               <button
@@ -987,10 +1080,10 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                   }
                   onAnalyzeAI();
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all text-white font-bold text-xs shadow-md shadow-emerald-900/10 cursor-pointer font-sans"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all text-white font-bold text-xs shadow-md shadow-emerald-900/10 cursor-pointer font-sans"
               >
-                <Sparkles className="w-4 h-4 text-emerald-200" />
-                <span>Predict</span>
+                <Sparkles className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                <span className="truncate">Predict</span>
               </button>
             </div>
           </div>
@@ -1187,6 +1280,24 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
           if (onNavigateToTab) onNavigateToTab('biodex');
         }}
         onRequireLogin={onRequireLogin}
+      />
+
+      {/* Comprehensive Botanical Specimen Dossier Modal */}
+      <SpecimenDossierModal
+        isOpen={isDossierModalOpen}
+        onClose={() => setIsDossierModalOpen(false)}
+        specimen={activeSpecimen}
+        onNavigateToBioDex={() => {
+          setIsDossierModalOpen(false);
+          if (onNavigateToTab) onNavigateToTab('biodex');
+        }}
+        onNavigateToPredict={() => {
+          setIsDossierModalOpen(false);
+          if (activeSpecimen) {
+            onSpeciesIdentified(activeSpecimen);
+          }
+          onAnalyzeAI();
+        }}
       />
     </main>
   );
