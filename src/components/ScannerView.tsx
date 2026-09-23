@@ -122,7 +122,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const [capturedSnapshotUrl, setCapturedSnapshotUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [aiModelStatus, setAiModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [scanMode, setScanMode] = useState<'tensorflow' | 'gemini'>('tensorflow');
+  const [scanMode, setScanMode] = useState<'tensorflow' | 'gemini'>('gemini');
   const [lastDetectionKeywords, setLastDetectionKeywords] = useState<string[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
