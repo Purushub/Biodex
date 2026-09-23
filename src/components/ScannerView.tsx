@@ -112,6 +112,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isFlashlightOn, setIsFlashlightOn] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [isShutterFlashing, setIsShutterFlashing] = useState(false);
   
   // Active identified specimen starts as null (blank / clean camera) until user scans, captures, or selects
   const [activeSpecimen, setActiveSpecimen] = useState<SpeciesData | null>(null);
@@ -415,17 +416,25 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     return enrichSpeciesWithEducationalData(dynamicSpecies);
   };
 
-  // Shutter Button Capture & AI Detection Flow (MobileNet + Server Enrichment)
+  // Shutter Button Capture & AI Detection Flow: Capture & Freeze Frame First, Then Analyze Captured Image
   const handleShutterCapture = async () => {
     soundFX.playConfirm();
-    setIsAnalyzingImage(true);
-    setActiveSpecimen(null);
 
+    // 1. Shutter camera flash animation
+    setIsShutterFlashing(true);
+    setTimeout(() => setIsShutterFlashing(false), 140);
+
+    // 2. Immediately capture the current camera frame FIRST
     const captureResult = captureFrameFromVideo();
     const snapshot = captureResult?.snapshot || null;
     if (snapshot) {
+      // Freeze and show the captured image in the camera viewfinder right away!
       setCapturedSnapshotUrl(snapshot);
     }
+
+    // 3. Mark analyzing state for the captured image
+    setIsAnalyzingImage(true);
+    setActiveSpecimen(null);
 
     try {
       // Step 1: Run MobileNet classification in-browser only if in tensorflow mode (skips CPU lag in Gemini AI mode!)
@@ -846,25 +855,37 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
 
       {/* ── CAMERA SCREEN: Positioned cleanly BELOW the model switcher header ── */}
       <div className="relative flex-1 w-full overflow-hidden bg-slate-950 flex flex-col justify-between" data-purpose="camera-viewfinder-screen">
-        {/* BEGIN: CameraFeedBackground - Live Camera by default, blank/clean slate if loading */}
+        {/* BEGIN: CameraFeedBackground - Freeze captured photo first when taken, otherwise live video stream */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950" data-purpose="camera-viewfinder">
-          {cameraStream ? (
+          {/* Shutter Camera Flash Animation */}
+          {isShutterFlashing && (
+            <div className="absolute inset-0 z-40 bg-white transition-opacity duration-150 pointer-events-none" />
+          )}
+
+          {/* Always mount video element when cameraStream is active so stream tracks and videoRef are preserved */}
+          {cameraStream && (
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
               className={`w-full h-full object-cover object-center scale-105 transition-all duration-300 ${
-                isFlashlightOn ? 'brightness-125 contrast-110' : ''
-              }`}
+                capturedSnapshotUrl ? 'hidden' : 'block'
+              } ${isFlashlightOn ? 'brightness-125 contrast-110' : ''}`}
             />
-          ) : capturedSnapshotUrl ? (
-            <img
-              src={capturedSnapshotUrl}
-              alt="Captured field specimen"
-              className="w-full h-full object-cover object-center scale-105"
-            />
-          ) : (
+          )}
+
+          {/* Frozen Captured Image Preview: Displayed immediately upon capture or upload */}
+          {capturedSnapshotUrl ? (
+            <div className="relative w-full h-full animate-in fade-in zoom-in-95 duration-200">
+              <img
+                src={capturedSnapshotUrl}
+                alt="Captured field specimen"
+                className="w-full h-full object-cover object-center scale-105"
+              />
+              <div className="absolute inset-0 bg-slate-950/20 backdrop-contrast-105" />
+            </div>
+          ) : !cameraStream ? (
             /* Blank / Live Camera Initializing State */
             <div className="w-full h-full bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 flex flex-col items-center justify-center text-slate-300 p-6 text-center">
               <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3">
@@ -884,11 +905,44 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                 </button>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Clean atmospheric gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-white/40 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-white/35 pointer-events-none" />
         </div>
+
+        {/* Floating Quick Action: Retake Button when a snapshot is frozen on screen */}
+        {capturedSnapshotUrl && (
+          <div className="absolute top-3 left-3 z-30 pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => {
+                soundFX.playClick();
+                setCapturedSnapshotUrl(null);
+                setActiveSpecimen(null);
+                setIsAnalyzingImage(false);
+                if (!cameraStream) {
+                  startCamera();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-semibold backdrop-blur-md border border-white/20 shadow-lg cursor-pointer transition-all active:scale-95 font-sans"
+              title="Discard captured image and return to live camera"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Retake / Live Camera</span>
+            </button>
+          </div>
+        )}
+
+        {/* Floating Status: Photo Captured & AI Analyzing */}
+        {capturedSnapshotUrl && isAnalyzingImage && (
+          <div className="absolute top-3 right-3 z-30 pointer-events-none">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/85 text-emerald-300 text-xs font-semibold backdrop-blur-md border border-emerald-500/40 shadow-lg">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="font-sans">Analyzing Captured Photo...</span>
+            </div>
+          </div>
+        )}
 
         {/* BEGIN: ViewfinderHUD - Reticle Corners & Centered Aim */}
         <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center p-6 pb-28">
@@ -916,21 +970,34 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
-                  {isAnalyzingImage ? 'Analyzing...' : `${confidenceScore}% Match`}
+                  {isAnalyzingImage ? 'Analyzing Captured Image...' : `${confidenceScore}% Match`}
                 </span>
               </div>
             ) : (
               <div
                 className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md transition-all"
               >
-                <span className={`w-2 h-2 rounded-full ${aiModelStatus === 'ready' ? (scanMode === 'gemini' ? 'bg-blue-500' : 'bg-emerald-500') : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
+                <span className={`w-2 h-2 rounded-full ${isAnalyzingImage ? 'bg-emerald-400 animate-ping' : aiModelStatus === 'ready' ? (scanMode === 'gemini' ? 'bg-blue-500' : 'bg-emerald-500') : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
                 <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
                   {isAnalyzingImage
-                    ? scanMode === 'gemini' ? 'Gemini AI Analyzing...' : 'TensorFlow Analyzing...'
+                    ? 'Analyzing Captured Photo...'
                     : aiModelStatus === 'loading' ? 'Loading AI Model...'
                     : scanMode === 'gemini' ? 'AI Scan Ready (Gemini)'
                     : 'TensorFlow Ready'}
                 </span>
+              </div>
+            )}
+
+            {/* In-Viewfinder Analysis Indicator Banner */}
+            {isAnalyzingImage && capturedSnapshotUrl && (
+              <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center text-center w-72 bg-slate-950/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-emerald-500/40 shadow-xl">
+                <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold font-sans">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                  <span>Gemini Vision AI Analysis</span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5 font-sans">
+                  Analyzing captured photo for species taxonomy & botanical data...
+                </p>
               </div>
             )}
           </div>

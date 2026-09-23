@@ -11,6 +11,7 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Hash,
   Activity,
   Droplets,
@@ -18,6 +19,8 @@ import {
   Leaf,
   Sliders,
 } from 'lucide-react';
+import { SpecimenDossierModal } from './SpecimenDossierModal';
+import { enrichSpeciesWithEducationalData } from '../data/species';
 import {
   SpeciesData,
   GoogleLensIdentification,
@@ -222,6 +225,22 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
 
   const [showAdvancedSOP, setShowAdvancedSOP] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDossierOpen, setIsDossierOpen] = useState(false);
+
+  // Computed specimen data enriched with comprehensive botanical & educational attributes
+  const dossierSpecimen: SpeciesData = enrichSpeciesWithEducationalData({
+    ...(species || baseSpecies),
+    commonName: customNameInput.trim() || (isDetectedUndetected ? 'Species not detected' : speciesCommon),
+    scientificName:
+      customScientificInput.trim() ||
+      (customNameInput.trim()
+        ? `${customNameInput.trim()} sp.`
+        : (isDetectedUndetected ? 'New species detected, please input name' : speciesScientific)),
+    category: category,
+    imageUrl: imageUrl,
+    iucnStatus: isDetectedUndetected ? ('Least Concern' as IUCNStatus) : aiEndangeredStatus,
+    visionMatchConfidence: visionConfidence,
+  });
 
   useEffect(() => {
     if (species) {
@@ -308,7 +327,7 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
           vitalityStats: {
             populationHealthValue: '30,000 INDIV',
             populationHealthPercent: 65,
-            populationHealthStatus: 'HEALTHY',
+            populationHealthStatus: 'STABLE',
             habitatIntegrityPercent: 70,
             habitatIntegrityStatus: '70% INTACT',
             pollinatorDensityPercent: 50,
@@ -481,7 +500,7 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
                       : speciesScientific));
               const isDiscovery = isDetectedUndetected || aiEndangeredStatus === 'New Discovery' || aiEndangeredStatus === 'Not Evaluated';
               return (
-                <div className="p-4 space-y-2">
+                <div className="p-4 space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h1 className="font-bold text-slate-900 text-lg leading-tight">
@@ -497,6 +516,51 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
                         : 'bg-rose-50 text-rose-700 border-rose-200'
                     }`}>
                       {isDiscovery ? 'New Discovery' : aiEndangeredStatus}
+                    </span>
+                  </div>
+
+                  {/* Educational Attributes: Climate Zone & Predominant Region */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-sans pt-0.5">
+                    {dossierSpecimen.climateZone && (
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 font-medium border border-amber-200/60 flex items-center gap-1">
+                        <span>☀️</span>
+                        <span className="truncate max-w-[150px]">{dossierSpecimen.climateZone}</span>
+                      </span>
+                    )}
+                    {dossierSpecimen.predominantRegions && dossierSpecimen.predominantRegions.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 font-medium border border-sky-200/60 flex items-center gap-1">
+                        <span>🌍</span>
+                        <span className="truncate max-w-[140px]">{dossierSpecimen.predominantRegions[0]}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Botanical Dossier Quick Access Banner */}
+                  <div
+                    onClick={() => {
+                      soundFX.playClick();
+                      setIsDossierOpen(true);
+                    }}
+                    className="p-2.5 rounded-xl bg-emerald-50/90 hover:bg-emerald-100/90 border border-emerald-200 flex items-center justify-between cursor-pointer transition-colors group mt-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 leading-tight">
+                          <span>Botanical Dossier</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200/60 text-emerald-800 font-semibold">Ready</span>
+                        </p>
+                        <p className="text-[11px] text-emerald-700 truncate mt-0.5">
+                          {dossierSpecimen.medicinalProperties
+                            ? 'Medicinal uses, climate zones & educational facts'
+                            : 'Explore comprehensive botanical dossier'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0 ml-2">
+                      View <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
                 </div>
@@ -698,29 +762,57 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
               )}
             </button>
 
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Quick Actions Grid: Dossier, View BioDex, Predict Risk */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  soundFX.playClick();
+                  setIsDossierOpen(true);
+                }}
+                className="h-11 bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 border border-emerald-200/90 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] cursor-pointer"
+                title="Open comprehensive botanical dossier (medicinal uses, climate zones & educational facts)"
+              >
+                <BookOpen className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span className="truncate">Dossier</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => handleSave('biodex')}
-                className="h-11 bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-200/80 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+                className="h-11 bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-200/80 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] cursor-pointer"
               >
-                <BookOpen className="w-4 h-4 text-emerald-600" />
-                <span>View BioDex</span>
+                <Layers className="w-4 h-4 text-slate-600 shrink-0" />
+                <span className="truncate">BioDex</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSave('pva')}
-                className="h-11 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.99] shadow-xs"
+                className="h-11 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] shadow-xs cursor-pointer"
               >
-                <LineChart className="w-4 h-4 text-emerald-600" />
-                <span>Predict Risk</span>
+                <LineChart className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Predict</span>
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Embedded Botanical Specimen Dossier Modal */}
+      <SpecimenDossierModal
+        isOpen={isDossierOpen}
+        onClose={() => setIsDossierOpen(false)}
+        specimen={dossierSpecimen}
+        onNavigateToBioDex={() => {
+          setIsDossierOpen(false);
+          handleSave('biodex');
+        }}
+        onNavigateToPredict={() => {
+          setIsDossierOpen(false);
+          handleSave('pva');
+        }}
+      />
     </div>
   );
 };
