@@ -46,6 +46,7 @@ import {
   isModelLoading,
   type ClassificationResult,
 } from '../lib/tensorflowClassifier';
+import { identifyWithGeminiDirect } from '../lib/geminiVisionClient';
 
 interface ScannerViewProps {
   currentSpecies: SpeciesData;
@@ -297,7 +298,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     const isFauna =
       rawData?.kingdom === 'ANIMALIA' ||
       rawData?.kingdom === 'Animalia' ||
-      ['mammal', 'bird', 'reptil', 'insect', 'fish', 'amphibian', 'fauna', 'canis', 'jackal', 'dog', 'wolf', 'leopard', 'cat'].some((k) =>
+      ['mammal', 'bird', 'reptil', 'insect', 'fish', 'amphibian', 'fauna', 'canis', 'jackal', 'dog', 'wolf', 'leopard', 'cat', 'bear', 'ursus'].some((k) =>
         (rawData?.class || rawData?.category || rawData?.family || common).toLowerCase().includes(k)
       );
 
@@ -439,31 +440,95 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         return;
       }
 
-      // Step 2: Send to server for identification/enrichment
+      // Step 2: Send to Gemini / server for identification/enrichment
       if (snapshot && captureResult) {
-        const res = await fetch('/api/identify-species', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: snapshot,
-            mimeType: 'image/jpeg',
-            opticalColorHint: captureResult.colorHint,
-            avgRgb: captureResult.avgRgb,
-            commonNameHint: mobilenetHint,
-            mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
-            mobilenetCategory,
-            scanMode, // 'tensorflow' = skip Gemini, 'gemini' = use Gemini vision
-            customSpeciesCatalog: getCustomSpeciesCatalog(),
-          }),
-        });
+        let apiData: any = null;
 
-        const data = await res.json();
-        const detected = createDetectedSpeciesFromAPI(data, snapshot);
-        // Use the higher of MobileNet or server confidence
-        const finalConfidence = Math.max(detected.visionMatchConfidence || 0, mobilenetConfidence);
-        setConfidenceScore(finalConfidence || 96.5);
-        setActiveSpecimen(detected);
-        onSpeciesIdentified(detected);
+        // If in AI Scan (Gemini) mode, run direct Gemini client first
+        if (scanMode === 'gemini') {
+          try {
+            console.log('[BioDex AI] Calling Gemini Vision directly...');
+            const geminiRes = await identifyWithGeminiDirect(snapshot, mobilenetHint);
+            if (geminiRes && geminiRes.commonName) {
+              apiData = { data: geminiRes };
+            }
+          } catch (gErr) {
+            console.warn('[BioDex AI] Direct Gemini call error:', gErr);
+          }
+        }
+
+        // Try backend /api/identify-species route if not already resolved
+        if (!apiData) {
+          try {
+            const res = await fetch('/api/identify-species', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                imageBase64: snapshot,
+                mimeType: 'image/jpeg',
+                opticalColorHint: captureResult.colorHint,
+                avgRgb: captureResult.avgRgb,
+                commonNameHint: mobilenetHint,
+                mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
+                mobilenetCategory,
+                scanMode,
+                customSpeciesCatalog: getCustomSpeciesCatalog(),
+              }),
+            });
+            if (res.ok) {
+              apiData = await res.json();
+            }
+          } catch (sErr) {
+            console.warn('[BioDex AI] /api/identify-species fetch error:', sErr);
+          }
+        }
+
+        // Fallback: If still not resolved and scanMode is 'gemini', try direct Gemini one more time
+        if (!apiData && scanMode === 'gemini') {
+          try {
+            const fallbackRes = await identifyWithGeminiDirect(snapshot, mobilenetHint);
+            if (fallbackRes && fallbackRes.commonName) {
+              apiData = { data: fallbackRes };
+            }
+          } catch (fErr) {
+            console.warn('[BioDex AI] Direct Gemini fallback error:', fErr);
+          }
+        }
+
+        if (apiData) {
+          const detected = createDetectedSpeciesFromAPI(apiData, snapshot);
+          const finalConfidence = Math.max(detected.visionMatchConfidence || 0, mobilenetConfidence);
+          setConfidenceScore(finalConfidence || 96.5);
+          setActiveSpecimen(detected);
+          onSpeciesIdentified(detected);
+        } else if (mobilenetHint && scanMode === 'tensorflow') {
+          const detected = createDetectedSpeciesFromAPI(
+            { data: { commonName: mobilenetHint, scientificName: 'Identified Specimen', confidence: mobilenetConfidence } },
+            snapshot
+          );
+          setConfidenceScore(mobilenetConfidence || 92);
+          setActiveSpecimen(detected);
+          onSpeciesIdentified(detected);
+        } else {
+          const detected = createDetectedSpeciesFromAPI(
+            {
+              data: {
+                commonName: 'Species not detected',
+                scientificName: 'New species detected, please input name',
+                confidence: 72.0,
+                isNewSpecies: true,
+                kingdom: 'EUKARYOTA',
+                order: 'NEW_DISCOVERY',
+                family: 'Field Discovery',
+                iucnStatus: 'New Discovery',
+                description: 'Species not detected in the current catalog. You can name this new species now and add it to your Biodiversity Register so BioDex recognizes it in future scans.',
+              },
+            },
+            snapshot
+          );
+          setActiveSpecimen(detected);
+          onSpeciesIdentified(detected);
+        }
       }
     } catch (err) {
       console.warn('AI vision scan note:', err);
@@ -553,42 +618,84 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         console.warn('[BioDex AI] Upload classification note:', mlErr);
       }
 
-      try {
-        const res = await fetch('/api/identify-species', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: dataUrl,
-            mimeType: file.type || 'image/jpeg',
-            fileName: file.name,
-            commonNameHint: mobilenetHint || file.name.replace(/\.[^/.]+$/, ''),
-            mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
-            mobilenetCategory,
-            scanMode, // 'tensorflow' = skip Gemini, 'gemini' = use Gemini vision
-            customSpeciesCatalog: getCustomSpeciesCatalog(),
-          }),
-        });
+      let apiData: any = null;
 
-        const data = await res.json();
-        const detected = createDetectedSpeciesFromAPI(data, dataUrl);
+      // In AI Scan (Gemini) mode, run direct Gemini client first
+      if (scanMode === 'gemini') {
+        try {
+          console.log('[BioDex AI] Calling Gemini Vision directly for uploaded photo...');
+          const geminiRes = await identifyWithGeminiDirect(dataUrl, mobilenetHint);
+          if (geminiRes && geminiRes.commonName) {
+            apiData = { data: geminiRes };
+          }
+        } catch (gErr) {
+          console.warn('[BioDex AI] Direct Gemini upload error:', gErr);
+        }
+      }
+
+      // Try server route if not already resolved
+      if (!apiData) {
+        try {
+          const res = await fetch('/api/identify-species', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: dataUrl,
+              mimeType: file.type || 'image/jpeg',
+              fileName: file.name,
+              commonNameHint: mobilenetHint || file.name.replace(/\.[^/.]+$/, ''),
+              mobilenetPredictions: mobilenetPredictions.map(p => ({ className: p.className, probability: p.probability })),
+              mobilenetCategory,
+              scanMode,
+              customSpeciesCatalog: getCustomSpeciesCatalog(),
+            }),
+          });
+          if (res.ok) {
+            apiData = await res.json();
+          }
+        } catch (sErr) {
+          console.warn('[BioDex AI] Upload server error:', sErr);
+        }
+      }
+
+      // Fallback: If still not resolved and scanMode is 'gemini', try direct Gemini
+      if (!apiData && scanMode === 'gemini') {
+        try {
+          const fallbackRes = await identifyWithGeminiDirect(dataUrl, mobilenetHint);
+          if (fallbackRes && fallbackRes.commonName) {
+            apiData = { data: fallbackRes };
+          }
+        } catch (fErr) {
+          console.warn('[BioDex AI] Upload Gemini fallback error:', fErr);
+        }
+      }
+
+      if (apiData) {
+        const detected = createDetectedSpeciesFromAPI(apiData, dataUrl);
         setConfidenceScore(detected.visionMatchConfidence || 95);
         setActiveSpecimen(detected);
         onSpeciesIdentified(detected);
         soundFX.playConfirm();
         setIsSaveModalOpen(true);
-      } catch (err) {
-        console.warn('Upload AI note:', err);
+      } else {
+        const fallbackName = mobilenetHint || file.name.replace(/\.[^/.]+$/, '');
         const detected = createDetectedSpeciesFromAPI(
-          { data: { commonName: mobilenetHint || file.name.replace(/\.[^/.]+$/, ''), scientificName: 'Uploaded Specimen' } },
+          {
+            data: {
+              commonName: fallbackName || 'Species not detected',
+              scientificName: fallbackName ? 'Uploaded Specimen' : 'New species detected, please input name',
+              confidence: mobilenetHint ? 85 : 72,
+              isNewSpecies: !fallbackName,
+            },
+          },
           dataUrl
         );
         setActiveSpecimen(detected);
         onSpeciesIdentified(detected);
         soundFX.playConfirm();
         setIsSaveModalOpen(true);
-      } finally {
-        setIsAnalyzingImage(false);
       }
+      setIsAnalyzingImage(false);
     };
     reader.readAsDataURL(file);
   };
@@ -603,7 +710,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
 
   return (
     <main
-      className="relative w-full h-[calc(100vh-4rem)] max-w-md mx-auto overflow-hidden bg-white flex flex-col justify-between shadow-2xl rounded-3xl border border-slate-200"
+      className="relative w-full h-[calc(100vh-4rem)] max-w-md mx-auto overflow-hidden bg-slate-950 flex flex-col shadow-2xl rounded-3xl border border-slate-200"
       data-purpose="field-vision-scanner"
     >
       {/* HIDDEN FILE INPUT FOR PHOTO UPLOAD */}
@@ -615,146 +722,59 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         onChange={handleFileUpload}
       />
 
-      {/* SCAN MODE TOGGLE — TensorFlow vs AI Scan (Gemini) */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-0.5 bg-white/90 backdrop-blur-md rounded-full p-0.5 border border-slate-200 shadow-lg">
-        <button
-          type="button"
-          onClick={() => { setScanMode('tensorflow'); soundFX.playScanBeep(); }}
-          className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1.5 ${
-            scanMode === 'tensorflow'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Cpu className="w-3 h-3" />
-          TensorFlow
-        </button>
-        <button
-          type="button"
-          onClick={() => { setScanMode('gemini'); soundFX.playScanBeep(); }}
-          className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1.5 ${
-            scanMode === 'gemini'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Sparkles className="w-3 h-3" />
-          AI Scan
-        </button>
-      </div>
-
-      {/* BEGIN: CameraFeedBackground - Live Camera by default, blank/clean slate if loading (NO hardcoded orchid) */}
-      <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950" data-purpose="camera-viewfinder">
-        {cameraStream ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`w-full h-full object-cover object-center scale-105 transition-all duration-300 ${
-              isFlashlightOn ? 'brightness-125 contrast-110' : ''
-            }`}
-          />
-        ) : capturedSnapshotUrl ? (
-          <img
-            src={capturedSnapshotUrl}
-            alt="Captured field specimen"
-            className="w-full h-full object-cover object-center scale-105"
-          />
-        ) : (
-          /* Blank / Live Camera Initializing State */
-          <div className="w-full h-full bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 flex flex-col items-center justify-center text-slate-300 p-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3">
-              <Camera className="w-8 h-8 text-emerald-400 animate-pulse" />
-            </div>
-            <p className="text-sm font-bold text-white font-sans">Camera Active</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-xs font-sans">
-              Point your camera at any plant, tree, or wildlife specimen in the field.
-            </p>
-            {cameraError && (
-              <button
-                type="button"
-                onClick={startCamera}
-                className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md cursor-pointer"
-              >
-                Enable Camera
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Clean atmospheric gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-white/40 pointer-events-none" />
-      </div>
-
-      {/* BEGIN: ViewfinderHUD - Reticle Corners & Centered Aim */}
-      <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center p-6 pb-44">
-        <div className="relative w-64 h-80 rounded-2xl transition-all duration-300">
-          {/* Emerald reticle 4 corners */}
-          <span className="reticle-corner top-0 left-0 border-t-4 border-l-4 rounded-tl-xl shadow-xs" />
-          <span className="reticle-corner top-0 right-0 border-t-4 border-r-4 rounded-tr-xl shadow-xs" />
-          <span className="reticle-corner bottom-0 left-0 border-b-4 border-l-4 rounded-bl-xl shadow-xs" />
-          <span className="reticle-corner bottom-0 right-0 border-b-4 border-r-4 rounded-br-xl shadow-xs" />
-
-          {/* Airy scanning line beam */}
-          <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_8px_#34d399] animate-scanline" />
-
-          {/* Center Aim Dot */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">
-            <span className="absolute w-full h-full rounded-full bg-emerald-400/40 animate-ping-slow" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
-          </div>
-
-          {/* Floating Match Chip */}
-          {activeSpecimen ? (
-            <div
-              onClick={() => setShowSpecimenDrawer(true)}
-              className="absolute -top-12 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md cursor-pointer hover:bg-white transition-all active:scale-95"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
-                {isAnalyzingImage ? 'Analyzing...' : `${confidenceScore}% Match`}
-              </span>
-            </div>
-          ) : (
-            <div
-              className="absolute -top-12 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md transition-all"
-            >
-              <span className={`w-2 h-2 rounded-full ${aiModelStatus === 'ready' ? (scanMode === 'gemini' ? 'bg-blue-500' : 'bg-emerald-500') : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
-              <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
-                {isAnalyzingImage
-                  ? scanMode === 'gemini' ? 'Gemini AI Analyzing...' : 'TensorFlow Analyzing...'
-                  : aiModelStatus === 'loading' ? 'Loading AI Model...'
-                  : scanMode === 'gemini' ? 'Gemini AI Ready — Tap Shutter'
-                  : 'TensorFlow Ready — Tap Shutter'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* BEGIN: TopBar - Floating bright white pill with camera controls */}
-      <header className="relative z-20 pt-4 px-4 pb-2 flex items-center justify-between pointer-events-auto">
-        <div className="glass-pill-bright px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-xs">
+      {/* ── TOP BAR: Model Switcher + Brand + Controls (Docked cleanly at the TOP, NEVER covers camera screen) ── */}
+      <header className="shrink-0 z-30 bg-white/95 backdrop-blur-md px-3 py-2 border-b border-slate-200/90 flex items-center justify-between gap-1 shadow-xs">
+        {/* Left: BioDex Badge */}
+        <div className="glass-pill-bright px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-2xs shrink-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold tracking-wide text-slate-800 uppercase font-sans">
+          <span className="text-[11px] font-extrabold tracking-wider text-slate-800 uppercase font-sans">
             BioDex
           </span>
         </div>
 
-        <div className="glass-pill-bright px-1.5 py-1 rounded-full flex items-center gap-1 shadow-xs">
+        {/* Center: Model Switching Toggle (TensorFlow vs AI Scan) */}
+        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-full border border-slate-200 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => { setScanMode('tensorflow'); soundFX.playScanBeep(); }}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1 cursor-pointer ${
+              scanMode === 'tensorflow'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Cpu className="w-3 h-3" />
+            <span>TensorFlow</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setScanMode('gemini'); soundFX.playScanBeep(); }}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1 cursor-pointer ${
+              scanMode === 'gemini'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            <span>AI Scan</span>
+          </button>
+        </div>
+
+        {/* Right: Camera Action Controls */}
+        <div className="glass-pill-bright px-1 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs shrink-0">
           {/* Flashlight */}
           <button
             type="button"
             aria-label="Toggle Flashlight"
             onClick={handleToggleFlashlight}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
               isFlashlightOn
                 ? 'bg-amber-100 text-amber-600'
-                : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-100 active:scale-95'
+                : 'text-slate-600 hover:text-emerald-700 hover:bg-slate-100 active:scale-95'
             }`}
+            title="Toggle Flashlight"
           >
-            <Zap className="w-4 h-4" />
+            <Zap className="w-3.5 h-3.5" />
           </button>
 
           {/* Camera Restart / Switch */}
@@ -766,10 +786,10 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               stopCamera();
               startCamera();
             }}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-700 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
             title="Restart Camera"
           >
-            <Camera className="w-4 h-4" />
+            <Camera className="w-3.5 h-3.5" />
           </button>
 
           {/* Upload from Photo Library */}
@@ -777,10 +797,10 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             type="button"
             aria-label="Upload Photo"
             onClick={() => fileInputRef.current?.click()}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-700 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
             title="Upload Photo from Device"
           >
-            <ImageIcon className="w-4 h-4" />
+            <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
           {/* Settings / Tutorial */}
@@ -791,15 +811,108 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               soundFX.playClick();
               if (onOpenTutorial) onOpenTutorial();
             }}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-700 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            title="Scanner Tutorial"
           >
-            <MoreVertical className="w-4 h-4" />
+            <MoreVertical className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
 
-      {/* Spacer */}
-      <div className="flex-1 pointer-events-none" />
+      {/* ── CAMERA SCREEN: Positioned cleanly BELOW the model switcher header ── */}
+      <div className="relative flex-1 w-full overflow-hidden bg-slate-950 flex flex-col justify-between" data-purpose="camera-viewfinder-screen">
+        {/* BEGIN: CameraFeedBackground - Live Camera by default, blank/clean slate if loading */}
+        <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950" data-purpose="camera-viewfinder">
+          {cameraStream ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover object-center scale-105 transition-all duration-300 ${
+                isFlashlightOn ? 'brightness-125 contrast-110' : ''
+              }`}
+            />
+          ) : capturedSnapshotUrl ? (
+            <img
+              src={capturedSnapshotUrl}
+              alt="Captured field specimen"
+              className="w-full h-full object-cover object-center scale-105"
+            />
+          ) : (
+            /* Blank / Live Camera Initializing State */
+            <div className="w-full h-full bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 flex flex-col items-center justify-center text-slate-300 p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3">
+                <Camera className="w-8 h-8 text-emerald-400 animate-pulse" />
+              </div>
+              <p className="text-sm font-bold text-white font-sans">Camera Active</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs font-sans">
+                Point your camera at any plant, tree, or wildlife specimen in the field.
+              </p>
+              {cameraError && (
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md cursor-pointer"
+                >
+                  Enable Camera
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Clean atmospheric gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-white/40 pointer-events-none" />
+        </div>
+
+        {/* BEGIN: ViewfinderHUD - Reticle Corners & Centered Aim */}
+        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center p-6 pb-28">
+          <div className="relative w-64 h-76 rounded-2xl transition-all duration-300">
+            {/* Emerald reticle 4 corners */}
+            <span className="reticle-corner top-0 left-0 border-t-4 border-l-4 rounded-tl-xl shadow-xs" />
+            <span className="reticle-corner top-0 right-0 border-t-4 border-r-4 rounded-tr-xl shadow-xs" />
+            <span className="reticle-corner bottom-0 left-0 border-b-4 border-l-4 rounded-bl-xl shadow-xs" />
+            <span className="reticle-corner bottom-0 right-0 border-b-4 border-r-4 rounded-br-xl shadow-xs" />
+
+            {/* Airy scanning line beam */}
+            <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_8px_#34d399] animate-scanline" />
+
+            {/* Center Aim Dot */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">
+              <span className="absolute w-full h-full rounded-full bg-emerald-400/40 animate-ping-slow" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
+            </div>
+
+            {/* Floating Match Chip */}
+            {activeSpecimen ? (
+              <div
+                onClick={() => setShowSpecimenDrawer(true)}
+                className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md cursor-pointer hover:bg-white transition-all active:scale-95"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
+                  {isAnalyzingImage ? 'Analyzing...' : `${confidenceScore}% Match`}
+                </span>
+              </div>
+            ) : (
+              <div
+                className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 glass-pill-bright px-3.5 py-1.5 rounded-full border border-slate-200 shadow-md transition-all"
+              >
+                <span className={`w-2 h-2 rounded-full ${aiModelStatus === 'ready' ? (scanMode === 'gemini' ? 'bg-blue-500' : 'bg-emerald-500') : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
+                <span className="font-mono text-xs font-bold text-slate-800 tracking-tight">
+                  {isAnalyzingImage
+                    ? scanMode === 'gemini' ? 'Gemini AI Analyzing...' : 'TensorFlow Analyzing...'
+                    : aiModelStatus === 'loading' ? 'Loading AI Model...'
+                    : scanMode === 'gemini' ? 'AI Scan Ready (Gemini)'
+                    : 'TensorFlow Ready'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1 pointer-events-none" />
 
       {/* BEGIN: BottomSheetAndControls - Exact from biodex_lens_scanner_bright_minimal */}
       <section className="relative z-20 flex flex-col justify-end" data-purpose="survey-controls-dock">
@@ -966,6 +1079,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
           </div>
         </div>
       </section>
+      </div> {/* End camera-viewfinder-screen */}
 
       {/* SPECIMEN DRAWER / QUICK TARGET SELECTOR */}
       {showSpecimenDrawer && (
