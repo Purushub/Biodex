@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SpeciesData, StudentSession, ChassisTheme, SurveyRecord } from '../types';
+import { SpeciesData, StudentSession, ChassisTheme, SurveyRecord, isFaunaSpecies } from '../types';
 import { soundFX } from '../utils/audio';
 import {
   Search,
@@ -27,6 +27,10 @@ import {
   Globe2,
   Compass,
   Leaf,
+  Utensils,
+  AlertTriangle,
+  ExternalLink,
+  CheckCircle2,
 } from 'lucide-react';
 import { YearWiseSurveyModal } from './YearWiseSurveyModal';
 import { ScannedSpecimenFormModal } from './ScannedSpecimenFormModal';
@@ -464,7 +468,195 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
             </div>
           </div>
 
-          {/* 2. Climate & Biome */}
+          {/* 1.1 Extinction Risks & Primary Causes */}
+          <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                  Extinction Risks & Primary Causes
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                THREAT DRIVERS
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {(Array.isArray(activeSpecies?.extinctionReasons) && activeSpecies.extinctionReasons.length > 0
+                ? activeSpecies.extinctionReasons
+                : typeof activeSpecies?.extinctionReasons === 'string'
+                ? [activeSpecies.extinctionReasons]
+                : isFaunaSpecies(activeSpecies)
+                ? [
+                    'Habitat fragmentation and loss of contiguous wildlife territory.',
+                    'Retaliatory human-wildlife conflict and depleted natural prey densities.',
+                    'Roadway mortality and anthropogenic environmental volatility.',
+                  ]
+                : [
+                    'Habitat clearance from intensive agricultural and urban development.',
+                    'Regional water table depletion and subterranean drainage alterations.',
+                    'Herbicide drift and competition from invasive plant species.',
+                  ]
+              ).map((reason, idx) => (
+                <div
+                  key={idx}
+                  className="bg-rose-50/50 rounded-xl p-2.5 border border-rose-100 flex items-start gap-2.5 text-xs text-slate-800 font-sans leading-relaxed"
+                >
+                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <span>{reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 1.2 Preventive Measures & Conservation Action */}
+          <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                  Preventive Measures & Conservation Action
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                RECOVERY ACTION
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {(Array.isArray(activeSpecies?.preventiveMeasures) && activeSpecies.preventiveMeasures.length > 0
+                ? activeSpecies.preventiveMeasures
+                : typeof activeSpecies?.preventiveMeasures === 'string'
+                ? [activeSpecies.preventiveMeasures]
+                : isFaunaSpecies(activeSpecies)
+                ? [
+                    'Establish and legally enforce contiguous wildlife underpasses and eco-corridors.',
+                    'Intensified anti-poaching patrols equipped with SMART satellite camera surveillance.',
+                    'Community-based conflict resolution, habitat restoration, and prey protection.',
+                  ]
+                : [
+                    'Establish dedicated native botanical preserves and conservation easements.',
+                    'Implement controlled prescribed burning and hydrology restoration programs.',
+                    'Protect pollinator flyways with pesticide-free buffer zones.',
+                  ]
+              ).map((measure, idx) => (
+                <div
+                  key={idx}
+                  className="bg-emerald-50/50 rounded-xl p-2.5 border border-emerald-100 flex items-start gap-2.5 text-xs text-slate-800 font-sans leading-relaxed"
+                >
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                    ✓
+                  </span>
+                  <span>{measure}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. FAUNA ONLY: Diet & Trophic Level */}
+          {isFaunaSpecies(activeSpecies) && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-amber-600 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                    Diet & Trophic Classification
+                  </h3>
+                </div>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border font-sans ${
+                    (activeSpecies?.dietType || '').toLowerCase() === 'carnivore'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : (activeSpecies?.dietType || '').toLowerCase() === 'omnivore'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
+                  {(activeSpecies?.dietType || '').toLowerCase() === 'carnivore' ? '🥩 Carnivore' : (activeSpecies?.dietType || '').toLowerCase() === 'omnivore' ? '🥗 Omnivore' : '🌿 Herbivore'}
+                </span>
+              </div>
+              <div className="bg-amber-50/40 rounded-xl p-3 border border-amber-200/60 space-y-2 text-xs text-slate-700 leading-relaxed font-sans">
+                <p>
+                  {activeSpecies?.dietDescription ||
+                    ((activeSpecies?.dietType || '').toLowerCase() === 'carnivore'
+                      ? 'Preys upon smaller mammals, reptiles, birds, or insects to regulate population densities and maintain top-down trophic balance in its ecosystem.'
+                      : (activeSpecies?.dietType || '').toLowerCase() === 'omnivore'
+                      ? 'Opportunistic feeder eating a diverse combination of seeds, fruits, foliage, insects, and small vertebrates depending upon seasonal availability.'
+                      : 'Specialized herbivore feeding on grasses, leaves, seeds, or nectar, acting as a crucial primary consumer and nutrient cycler.')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 3. FLORA ONLY: Medicinal Properties & Health Article Link */}
+          {!isFaunaSpecies(activeSpecies) && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HeartPulse className="w-4 h-4 text-rose-500 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                    Medicinal Properties & Therapeutic Uses
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                  PHARMACOPEIA
+                </span>
+              </div>
+              <div className="bg-rose-50/50 rounded-xl p-3 border border-rose-100/80 text-xs text-slate-700 leading-relaxed font-sans">
+                {typeof activeSpecies?.medicinalProperties === 'string' ? (
+                  activeSpecies.medicinalProperties
+                ) : Array.isArray(activeSpecies?.medicinalProperties) ? (
+                  <ul className="list-disc pl-4 space-y-1">
+                    {activeSpecies.medicinalProperties.map((p, idx) => (
+                      <li key={idx}>{p}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  'Contains natural secondary plant metabolites and antioxidants documented in herbal wellness and ecological studies.'
+                )}
+              </div>
+
+              {/* Health & Medicinal Article Link */}
+              <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white rounded-xl p-3 border border-emerald-200/90 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 font-bold text-emerald-950 font-sans">
+                    <BookOpen className="w-4 h-4 text-emerald-700 shrink-0" />
+                    Health & Medicinal Article
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">
+                    Scholarly Literature
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 font-sans font-medium line-clamp-2">
+                  {activeSpecies?.medicinalArticleTitle ||
+                    `NCBI PubMed: Medical & Pharmacological Research on ${activeSpecies?.commonName}`}
+                </p>
+                <div className="pt-1 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-mono truncate">
+                    Verified Medical Reference
+                  </span>
+                  <a
+                    href={
+                      activeSpecies?.medicinalArticleUrl ||
+                      `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(
+                        activeSpecies?.scientificName || activeSpecies?.commonName || ''
+                      )}+medicinal+health`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer font-sans shrink-0 hover:shadow-emerald-900/10"
+                    title="Open verified health and medicinal research article in a new tab"
+                  >
+                    <span>Read Article</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Climate & Biome */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
             <div className="flex items-center gap-2">
               <SunMedium className="w-4 h-4 text-amber-500 shrink-0" />
@@ -479,39 +671,20 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed font-sans mt-0.5">
-              Adapted to specialized hydrological patterns, temperature ranges, and sunlight conditions characteristic of {activeSpecies?.climateZone ? activeSpecies.climateZone.toLowerCase() : 'temperate and subtropical grasslands'}.
+              Adapted to specialized hydrological patterns, temperature ranges, and sunlight conditions characteristic of {activeSpecies?.climateZone ? activeSpecies.climateZone.toLowerCase() : 'native habitats and grasslands'}.
             </p>
           </div>
 
-          {/* 3. Medicinal Properties & Uses */}
+          {/* 5. Common & Practical Applications / Ecological Role */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
             <div className="flex items-center gap-2">
-              <HeartPulse className="w-4 h-4 text-rose-500 shrink-0" />
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
-                Medicinal Properties & Therapeutic Uses
-              </h3>
-            </div>
-            <div className="bg-rose-50/50 rounded-xl p-3 border border-rose-100/80 text-xs text-slate-700 leading-relaxed font-sans">
-              {typeof activeSpecies?.medicinalProperties === 'string' ? (
-                activeSpecies.medicinalProperties
-              ) : Array.isArray(activeSpecies?.medicinalProperties) ? (
-                <ul className="list-disc pl-4 space-y-1">
-                  {activeSpecies.medicinalProperties.map((p, idx) => (
-                    <li key={idx}>{p}</li>
-                  ))}
-                </ul>
+              {isFaunaSpecies(activeSpecies) ? (
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
               ) : (
-                'Contains natural secondary plant metabolites and antioxidants documented in herbal wellness and ecological studies.'
+                <Leaf className="w-4 h-4 text-emerald-600 shrink-0" />
               )}
-            </div>
-          </div>
-
-          {/* 4. Common & Practical Applications */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-            <div className="flex items-center gap-2">
-              <Leaf className="w-4 h-4 text-emerald-600 shrink-0" />
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
-                Where & How It Is Commonly Used
+                {isFaunaSpecies(activeSpecies) ? 'Ecological Role in Ecosystem' : 'Where & How It Is Commonly Used'}
               </h3>
             </div>
             <p className="text-xs text-slate-700 leading-relaxed font-sans bg-slate-50 p-3 rounded-xl border border-slate-100">
@@ -519,6 +692,8 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                 ? activeSpecies.commonUses
                 : Array.isArray(activeSpecies?.commonUses)
                 ? activeSpecies.commonUses.join(', ')
+                : isFaunaSpecies(activeSpecies)
+                ? 'Plays an indispensable role maintaining demographic balance in its native biome, controlling prey populations, and acting as an apex or keystone bio-indicator.'
                 : 'Cultivated and utilized across culinary recipes, herbal wellness, pollinator corridors, and conservation biology.'}
             </p>
           </div>

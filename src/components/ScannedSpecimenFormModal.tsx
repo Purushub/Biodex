@@ -30,6 +30,7 @@ import {
   SurveyRecord,
   ChassisTheme,
   GradeLevel,
+  isFaunaSpecies,
 } from '../types';
 import { soundFX } from '../utils/audio';
 import { saveSurveyRecordToFirestore } from '../lib/firestoreService';
@@ -549,12 +550,14 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 leading-tight">
-                          <span>Botanical Dossier</span>
+                          <span>{isFaunaSpecies(dossierSpecimen) ? 'Zoological Dossier' : 'Botanical Dossier'}</span>
                           <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200/60 text-emerald-800 font-semibold">Ready</span>
                         </p>
                         <p className="text-[11px] text-emerald-700 truncate mt-0.5">
-                          {dossierSpecimen.medicinalProperties
-                            ? 'Medicinal uses, climate zones & educational facts'
+                          {isFaunaSpecies(dossierSpecimen)
+                            ? `${dossierSpecimen.dietType || 'Fauna'} diet, extinction threats & preventive measures`
+                            : dossierSpecimen.medicinalProperties
+                            ? 'Medicinal article, climate zones & educational facts'
                             : 'Explore comprehensive botanical dossier'}
                         </p>
                       </div>
@@ -770,10 +773,18 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
                   soundFX.playClick();
                   setIsDossierOpen(true);
                 }}
-                className="h-11 bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 border border-emerald-200/90 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] cursor-pointer"
-                title="Open comprehensive botanical dossier (medicinal uses, climate zones & educational facts)"
+                className={`h-11 border rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] cursor-pointer ${
+                  isFaunaSpecies(dossierSpecimen)
+                    ? 'bg-amber-50 hover:bg-amber-100/90 text-amber-800 border-amber-200/90'
+                    : 'bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 border-emerald-200/90'
+                }`}
+                title={
+                  isFaunaSpecies(dossierSpecimen)
+                    ? 'Open comprehensive zoological dossier (diet, extinction causes & prevention)'
+                    : 'Open comprehensive botanical dossier (medicinal article, climate zones & educational facts)'
+                }
               >
-                <BookOpen className="w-4 h-4 text-emerald-700 shrink-0" />
+                <BookOpen className={`w-4 h-4 shrink-0 ${isFaunaSpecies(dossierSpecimen) ? 'text-amber-700' : 'text-emerald-700'}`} />
                 <span className="truncate">Dossier</span>
               </button>
 

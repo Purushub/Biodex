@@ -1,9 +1,10 @@
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Scan } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
   onReset?: () => void;
+  key?: React.Key;
 }
 
 interface State {
@@ -11,7 +12,11 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
+  declare props: Props;
+  declare state: State;
+  declare setState: (updater: Partial<State> | ((prevState: State) => Partial<State>)) => void;
+
   constructor(props: Props) {
     super(props);
     this.state = {

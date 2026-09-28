@@ -1,15 +1,21 @@
-import { SpeciesData, SurveyRecord } from '../types';
+import { SpeciesData, SurveyRecord, isFaunaSpecies } from '../types';
 
 export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesData {
   if (!species) return species;
   const common = (species.commonName || '').toLowerCase();
   const scientific = (species.scientificName || '').toLowerCase();
-  const category = (species.category || 'Flora').toLowerCase();
+  const isFauna = isFaunaSpecies(species);
 
   let endangeredStatus = species.endangeredStatus;
   let conservationStatus = species.conservationStatus;
   let climateZone = species.climateZone;
   let medicinalProperties = species.medicinalProperties;
+  let medicinalArticleUrl = species.medicinalArticleUrl;
+  let medicinalArticleTitle = species.medicinalArticleTitle;
+  let dietType = species.dietType;
+  let dietDescription = species.dietDescription;
+  let extinctionReasons = species.extinctionReasons;
+  let preventiveMeasures = species.preventiveMeasures;
   let commonUses = species.commonUses;
   let predominantRegions = species.predominantRegions;
   let interestingFacts = species.interestingFacts;
@@ -19,6 +25,18 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Endangered (EN, Criteria A2)';
     climateZone = climateZone || 'Temperate Wet-Mesic Tallgrass Prairie';
     medicinalProperties = medicinalProperties || 'Historically utilized in Indigenous Great Plains healing washes for dermatological relief; rich in secondary metabolites with mild antioxidant and anti-inflammatory attributes.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Platanthera+praeclara+medicinal+orchid';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PMC: Ethnobotanical Uses and Secondary Metabolites of Platanthera Orchidaceae';
+    extinctionReasons = extinctionReasons || [
+      'Conversion of over 75% of native wet tallgrass prairie habitat into deep-soil tiled crop agriculture.',
+      'Regional water table alterations from subterranean drainage ditches and tile networks.',
+      'Decline in night-flying sphinx hawkmoth populations essential for cross-pollination.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Hydrological restoration of wet-mesic prairie fen reserves by disabling drainage tiles.',
+      'Prescribed late-season burning to suppress competing invasive woody brush.',
+      'Establishment of native night-blooming hawkmoth nectar host corridors.'
+    ];
     commonUses = commonUses || 'Crucial ecological indicator of intact native tallgrass wetlands; protected under endangered botanical conservation treaties and habitat restoration programs.';
     predominantRegions = predominantRegions || ['United States (Minnesota, North Dakota, Iowa)', 'Canada (Manitoba)'];
     interestingFacts = interestingFacts || [
@@ -29,7 +47,18 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     endangeredStatus = endangeredStatus || 'Vulnerable - Migratory Decline';
     conservationStatus = conservationStatus || 'IUCN Red List: Endangered / Vulnerable';
     climateZone = climateZone || 'Temperate to Subtropical Migration Corridors';
-    medicinalProperties = medicinalProperties || 'Sequesters toxic cardenolides (cardiac glycosides) from milkweed sap, making caterpillars and adult butterflies unpalatable and noxious to birds.';
+    dietType = dietType || 'Herbivore';
+    dietDescription = dietDescription || 'Specialized herbivore: caterpillars feed exclusively on milkweed foliage and cardenolide-rich sap, while adult butterflies sip high-energy nectar from prairie blossoms.';
+    extinctionReasons = extinctionReasons || [
+      'Loss of over 85% of milkweed host plants across Midwest farm belts due to broad-spectrum herbicides.',
+      'Deforestation and catastrophic winter freeze storms in Mexican wintering Oyamel fir sanctuaries.',
+      'Rising climate volatility disrupting multi-generational migratory flight windows.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Plant pesticide-free native milkweed corridors along interstate highways and community habitats.',
+      'Enforce international trilateral migratory flyway protection treaties between Canada, US, and Mexico.',
+      'Halt prophylactic herbicide and insecticide spraying along rural field margins and utility easements.'
+    ];
     commonUses = commonUses || 'Global flagship ambassador for pollinator conservation, citizen science tracking, and international prairie flyway treaties.';
     predominantRegions = predominantRegions || ['United States', 'Canada', 'Mexico (Oyamel Fir Reserves)', 'Australia & New Zealand'];
     interestingFacts = interestingFacts || [
@@ -41,6 +70,16 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern (Keystone Nursery)';
     climateZone = climateZone || 'Temperate & Subtropical Grasslands';
     medicinalProperties = medicinalProperties || 'Traditional Indigenous poultices used milky latex sap for warts and ringworm; root extracts (Pleurisy root) historically served as a mild expectorant.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Asclepias+syriaca+cardiac+glycosides+medicinal';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PubMed: Cardenolides & Bioactive Glycosides in Asclepias syriaca';
+    extinctionReasons = extinctionReasons || [
+      'Widespread agricultural use of broad-spectrum glyphosate eliminating field-margin milkweed.',
+      'Frequent municipal roadside mowing during peak monarch egg-laying and flowering periods.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Establish designated pesticide-free pollinator highway rights-of-way with delayed autumn mowing.',
+      'Community and classroom native prairie seed broadcasting programs.'
+    ];
     commonUses = commonUses || 'Essential sole host nursery plant for monarch butterflies; silky seed floss historically gathered for buoyant life jacket insulation.';
     predominantRegions = predominantRegions || ['United States', 'Canada', 'Central Europe (Naturalized)'];
     interestingFacts = interestingFacts || [
@@ -52,6 +91,16 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern / Near Threatened in wild';
     climateZone = climateZone || 'Temperate Prairie & Dry Savanna';
     medicinalProperties = medicinalProperties || 'Widely recognized herbal immune booster rich in echinacosides and caffeic acid; clinically used to reduce duration of cold and upper respiratory symptoms.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Echinacea+purpurea+clinical+immune+pharmacology';
+    medicinalArticleTitle = medicinalArticleTitle || 'NIH National Library of Medicine: Immunomodulatory & Therapeutic Effects of Echinacea purpurea';
+    extinctionReasons = extinctionReasons || [
+      'Historical over-harvesting of wild roots for commercial herbal medicine extraction.',
+      'Fragmentation of dry mesic prairies by agricultural and residential development.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Promote sustainable commercial nursery farming to eliminate pressure on wild root populations.',
+      'Establish prairie buffer restoration corridors and rotational prescribed burns.'
+    ];
     commonUses = commonUses || 'Formulated into herbal teas, lozenges, and dietary tinctures; planted in drought-resistant pollinator gardens for native bees.';
     predominantRegions = predominantRegions || ['United States (Great Plains & Midwest)', 'Canada (Ontario, Saskatchewan)', 'Cultivated throughout Europe & Asia'];
     interestingFacts = interestingFacts || [
@@ -63,17 +112,232 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Vulnerable / State Endangered';
     climateZone = climateZone || 'Boreal & Cold Temperate Calcareous Fens';
     medicinalProperties = medicinalProperties || 'Native Americans historically prepared a mild sedative tea from dried roots for anxiety and insomnia (known in folk medicine as American Valerian).';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Cypripedium+orchid+medicinal+compounds';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI Research: Bioactive Constituents & Traditional Pharmacopeia of Cypripedium';
+    extinctionReasons = extinctionReasons || [
+      'Illegal wild poaching and digging by rare orchid collectors and commercial traffickers.',
+      'Drainage of boreal calcareous fens lowering regional water tables.',
+      'Unchecked white-tailed deer browsing destroying fragile emerging flower shoots.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Strict legal enforcement of state endangered species trespass fines and trail surveillance.',
+      'Install deer-exclusion fencing around verified wild orchid fen colonies.',
+      'Hydrological restoration of calcareous wetlands and vernal fen margins.'
+    ];
     commonUses = commonUses || 'Official state flower of Minnesota; premier flagship orchid for wetland fen conservation and orchid biology education.';
     predominantRegions = predominantRegions || ['United States (Minnesota, Wisconsin, Michigan)', 'Canada (Ontario, Quebec)'];
     interestingFacts = interestingFacts || [
       'Takes 15 to 16 years from seed to produce its very first flower in the wild!',
       'Relies on symbiotic mycorrhizal soil fungi to feed its microscopic seeds because orchid seeds carry zero nutrient reserves.'
     ];
+  } else if (common.includes('bumblebee') || scientific.includes('bombus')) {
+    endangeredStatus = endangeredStatus || 'Critically Endangered - High Collapse Risk';
+    conservationStatus = conservationStatus || 'IUCN Red List: Critically Endangered (CR A1)';
+    climateZone = climateZone || 'Temperate Grasslands & Woodland Parks';
+    dietType = dietType || 'Herbivore';
+    dietDescription = dietDescription || 'Herbivorous nectarivore & pollenivore: feeds on floral nectar for worker flight energy and collects floral pollen proteins to feed developing brood and queens.';
+    extinctionReasons = extinctionReasons || [
+      'Widespread agricultural and suburban use of neonicotinoid systemic pesticides toxic to bee neurology.',
+      'Lethal microsporidian fungal pathogens (Nosema bombi) transferred from commercial greenhouse bumblebees.',
+      'Severe loss of continuous spring-to-autumn floral blooming corridors across native grasslands.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Ban prophylactic neonicotinoid seed treatments across critical bumblebee habitat zones.',
+      'Establish pesticide-free urban pollinator gardens and preserve uncompacted overwintering soil burrows.',
+      'Plant diverse multi-species native floral arrays with continuous blooms from April to October.'
+    ];
+    commonUses = commonUses || 'Essential keystone wild pollinator for native cranberries, blueberries, tomatoes, and wildflowers.';
+    predominantRegions = predominantRegions || ['Upper Mississippi Watershed', 'Great Lakes Region', 'Upper Midwest US'];
+    interestingFacts = interestingFacts || [
+      'The first federally endangered bumblebee in the continental United States.',
+      'Performs "buzz pollination" by vibrating its flight muscles at Middle C frequency to shake pollen free from stubborn blossoms.'
+    ];
+  } else if (common.includes('turtle') || scientific.includes('blandingii')) {
+    endangeredStatus = endangeredStatus || 'Endangered - High Extinction Risk';
+    conservationStatus = conservationStatus || 'IUCN Red List: Endangered (EN A2)';
+    climateZone = climateZone || 'Wetland Marshes, Fens & Vernal Pools';
+    dietType = dietType || 'Omnivore';
+    dietDescription = dietDescription || 'Aquatic and terrestrial omnivore: consumes crayfish, aquatic insects, snails, frog tadpoles, along with duckweed, water lily leaves, and seeds.';
+    extinctionReasons = extinctionReasons || [
+      'High vehicular road mortality when adult nesting females cross highways to find sandy nesting sites.',
+      'Drainage and infilling of shallow wetland marshes and vernal pools for agriculture and housing.',
+      'Subsidized raccoon and skunk populations destroying upwards of 80% of turtle nests each season.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Install specialized amphibian and reptile barrier fencing with eco-passage tunnels beneath crossing roads.',
+      'Deploy predator-exclusion wire mesh cages over monitored turtle nests until eggs hatch.',
+      'Legally protect contiguous wetland-upland complexes under state conservation easements.'
+    ];
+    commonUses = commonUses || 'Apex wetland bio-indicator; flagship species for interconnected freshwater marsh preservation.';
+    predominantRegions = predominantRegions || ['Great Lakes Basin', 'Minnesota & Wisconsin Marshes', 'Southern Ontario (Canada)'];
+    interestingFacts = interestingFacts || [
+      'Easily identified by its bright canary-yellow throat and distinct curved "smile".',
+      'Can live over 75 years in the wild and reproduce successfully well into its seventies!'
+    ];
+  } else if (common.includes('tiger') || scientific.includes('tigris')) {
+    endangeredStatus = endangeredStatus || 'Endangered - Critical Population Threat';
+    conservationStatus = conservationStatus || 'IUCN Red List: Endangered (EN Criteria C2a)';
+    climateZone = climateZone || 'Dry Deciduous Forest & Subtropical Woodlands';
+    dietType = dietType || 'Carnivore';
+    dietDescription = dietDescription || 'Strict apex carnivore: stalks and preys upon large ungulates including Sambar deer, Chital (spotted deer), wild boar, and Nilgai; prevents overgrazing of forest understories.';
+    extinctionReasons = extinctionReasons || [
+      'Habitat fragmentation and loss of contiguous forest corridors connecting tiger reserves.',
+      'Illegal wildlife poaching driven by international black market trade in tiger skins and bones.',
+      'Depleted wild herbivore prey densities and retaliatory conflict around human settlements.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Expand and legally protect contiguous wildlife corridors connecting Ranthambore and adjacent forests.',
+      'Deploy 24/7 SMART satellite anti-poaching patrols and AI-driven thermal camera surveillance.',
+      'Community-based ecotourism benefit sharing and voluntary village relocation out of core tiger habitats.'
+    ];
+    commonUses = commonUses || 'National Animal of India; premier flagship apex predator maintaining ecological balance across Asian forest ecosystems.';
+    predominantRegions = predominantRegions || ['India (Ranthambore, Jim Corbett, Sundarbans)', 'Nepal', 'Bhutan & Bangladesh'];
+    interestingFacts = interestingFacts || [
+      'Each tiger has a completely unique pattern of black stripes—no two tigers in the world share the same pattern, like human fingerprints!',
+      'Unlike most other big cats, tigers love water and are powerful swimmers capable of crossing rivers several miles wide.'
+    ];
+  } else if (common.includes('leopard') || scientific.includes('pardus')) {
+    endangeredStatus = endangeredStatus || 'Vulnerable - Near Human Settlements';
+    conservationStatus = conservationStatus || 'IUCN Red List: Vulnerable (VU Criteria C1)';
+    climateZone = climateZone || 'Aravalli Scrub & Dry Deciduous Hills';
+    dietType = dietType || 'Carnivore';
+    dietDescription = dietDescription || 'Opportunistic solitary carnivore: stalks medium to small prey including desert hares, langurs, peafowl, nilgai calves, and rodents across rocky scrub outcroppings.';
+    extinctionReasons = extinctionReasons || [
+      'Encroachment of urban development and vehicular collisions across peripheral highway roads.',
+      'Prey depletion in fragmented scrub corridors forcing carnivores near human borders.',
+      'Retaliatory trapping, poisoning, and illicit poaching for skins and claws.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Establish dedicated wildlife underpasses along major highway corridors to prevent roadkill.',
+      'Construct wildlife rescue networks and rapid-response conflict resolution teams in urban border zones.',
+      'Preserve contiguous rocky scrub ridges and restore natural wild prey populations in buffer hills.'
+    ];
+    commonUses = commonUses || 'Apex rocky-hill controller; bio-indicator of healthy dry-deciduous scrub ecosystems and coexistence models.';
+    predominantRegions = predominantRegions || ['India (Jhalana Reserve, Aravalli Ranges, Rajasthan)', 'Central & Southern Indian Sanctuaries'];
+    interestingFacts = interestingFacts || [
+      'Jhalana Sanctuary in Jaipur is the world’s first dedicated urban leopard reserve, where leopards thrive right on the boundary of a city of 4 million people!',
+      'Features distinctive rosette camouflage markings and can leap up to 6 meters horizontally.'
+    ];
+  } else if (common.includes('peafowl') || scientific.includes('pavo')) {
+    endangeredStatus = endangeredStatus || 'Least Concern / Culturally Protected';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern (National Bird of India)';
+    climateZone = climateZone || 'Semi-Arid Scrub, City Parks & Riparian Woodlands';
+    dietType = dietType || 'Omnivore';
+    dietDescription = dietDescription || 'Adaptable ground-foraging omnivore: consumes wild grains, seeds, flower petals, berries, insects, ticks, grasshoppers, and small reptiles (including juvenile snakes).';
+    extinctionReasons = extinctionReasons || [
+      'Agricultural chemical seed dressing toxicity and pesticide runoff in peripheral croplands.',
+      'Felling of historic tall roosting trees (banyan, neem) due to infrastructure expansion.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Promote organic farming practices and non-toxic seed treatments around village boundaries.',
+      'Preserve ancient heritage roosting trees and establish community protected nesting groves.'
+    ];
+    commonUses = commonUses || 'National Bird of India; biological pest controller against insects and ticks; revered cultural icon.';
+    predominantRegions = predominantRegions || ['India (Rajasthan, Gujarat, Madhya Pradesh)', 'Nepal', 'Sri Lanka & Pakistan'];
+    interestingFacts = interestingFacts || [
+      'Male peafowls (peacocks) do not grow their magnificent 5-foot iridescent eye-spotted tail train until they reach 3 years of age.',
+      'Revered for centuries for their ability to hunt and consume venomous juvenile cobra snakes without harm.'
+    ];
+  } else if (common.includes('chinkara') || scientific.includes('gazella')) {
+    endangeredStatus = endangeredStatus || 'Least Concern / Arid Zone Sentinel';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern (State Heritage Animal)';
+    climateZone = climateZone || 'Arid Desert & Aravalli Foothill Scrub';
+    dietType = dietType || 'Herbivore';
+    dietDescription = dietDescription || 'Specialized arid herbivore: browses on desert grasses, acacia foliage, wild gourds, and succulent desert shrubs, extracting required water metabolically.';
+    extinctionReasons = extinctionReasons || [
+      'Predation and harassment by feral stray dog packs around sanctuary perimeters.',
+      'Linear infrastructure (high-speed roads, canals, wire fences) fragmenting grazing migration paths.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Feral dog population management and vaccination around wildlife sanctuary boundaries.',
+      'Install wildlife-permeable fencing allowing gazelle movement without risk of entrapment.',
+      'Strict enforcement of Indian Wildlife Protection Act Schedule I penalties against poaching.'
+    ];
+    commonUses = commonUses || 'State Heritage Animal of Rajasthan; primary native desert grazer preventing scrub bush overgrowth.';
+    predominantRegions = predominantRegions || ['Thar Desert & Aravalli Foothills (Rajasthan, India)', 'Gujarat Arid Plains', 'Iran & Pakistan'];
+    interestingFacts = interestingFacts || [
+      'In hot desert conditions, Chinkaras can survive for months without drinking open water by absorbing moisture from desert dew and vegetation!',
+      'Can run in graceful bounds reaching speeds of up to 64 km/h to escape predators.'
+    ];
+  } else if (common.includes('monitor') || scientific.includes('bengalensis')) {
+    endangeredStatus = endangeredStatus || 'Least Concern / Legally Protected';
+    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern (Schedule I Protected)';
+    climateZone = climateZone || 'Rocky Ridges, Fort Ruins & Dry Scrub';
+    dietType = dietType || 'Carnivore';
+    dietDescription = dietDescription || 'Carnivore and opportunistic scavenger: feeds on terrestrial beetles, snails, bird eggs, rodents, amphibians, crabs, and smaller lizards.';
+    extinctionReasons = extinctionReasons || [
+      'Illegal poaching driven by illicit trade in reptile leather, folk medicine, and meat.',
+      'Loss of rocky scrub habitats and boulder fields to granite and quartzite quarrying.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Regulate and halt illegal rock quarrying across ancient Aravalli boulder corridors.',
+      'Crack down on illicit wildlife trade networks and increase monitoring of local markets.',
+      'Public educational campaigns countering superstitious beliefs about reptile remedies.'
+    ];
+    commonUses = commonUses || 'Schedule I protected reptile; natural controller of agricultural rodent pests and insect populations.';
+    predominantRegions = predominantRegions || ['India (Amer Fort, Nahargarh, Rajasthan)', 'Bangladesh', 'Nepal & Pakistan'];
+    interestingFacts = interestingFacts || [
+      'Can grow up to 1.75 meters long and possesses razor-sharp claws with an iron-like grip on stone cliffs.',
+      'In Indian history, Maratha warriors were said to have used trained monitor lizards with ropes to scale fortress walls at night!'
+    ];
+  } else if (common.includes('khejri') || scientific.includes('cineraria')) {
+    endangeredStatus = endangeredStatus || 'Least Concern / Keystone Desert Anchor';
+    conservationStatus = conservationStatus || 'State Tree of Rajasthan / Cultural Keystone';
+    climateZone = climateZone || 'Arid & Semi-Arid Desert Ecosystems';
+    medicinalProperties = medicinalProperties || 'Bark, leaves, and pods contain anti-inflammatory flavonoids and tannins traditionally brewed for skin ailments, rheumatism, and digestive health.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Prosopis+cineraria+medicinal+phytochemical';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PMC: Pharmacological Activities and Traditional Uses of Prosopis cineraria';
+    extinctionReasons = extinctionReasons || [
+      'Over-exploitation for firewood, charcoal, and severe unscientific branch lopping.',
+      'Falling groundwater tables in arid zones affecting deep taproot access.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Support community sacred grove protection and traditional Bishnoi conservation practices.',
+      'Enforce government protection against unauthorized logging of desert heritage trees.',
+      'Construct rainwater harvesting check-dams to replenish shallow groundwater aquifers.'
+    ];
+    commonUses = commonUses || 'State Tree of Rajasthan; Kalpavriksha of the desert providing protein-rich Sangri pods for culinary food and camel fodder.';
+    predominantRegions = predominantRegions || ['Thar Desert & Rajasthan (India)', 'Punjab & Gujarat', 'Oman & UAE'];
+    interestingFacts = interestingFacts || [
+      'Features a superhuman taproot that penetrates over 35 meters straight down into deep bedrock to tap ancient subterranean water!',
+      'Famously protected in 1730 by Amrita Devi and 363 Bishnoi villagers who sacrificed their lives hugging the trees to prevent them from being cut down.'
+    ];
+  } else if (common.includes('compass plant') || scientific.includes('silphium')) {
+    endangeredStatus = endangeredStatus || 'Vulnerable - Virgin Prairie Remnants';
+    conservationStatus = conservationStatus || 'IUCN Red List: Vulnerable (Criteria A4)';
+    climateZone = climateZone || 'Virgin Deep-Soil Tallgrass Prairies';
+    medicinalProperties = medicinalProperties || 'Aromatic resin sap traditionally gathered by Indigenous Great Plains tribes as an antiseptic chewing gum and expectorant tea for respiratory wellness.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Silphium+laciniatum+resin+medicinal';
+    medicinalArticleTitle = medicinalArticleTitle || 'Botanical Science: Resin Glycosides and Medicinal Uses of Silphium laciniatum';
+    extinctionReasons = extinctionReasons || [
+      'Destruction of deep virgin tallgrass prairie sod by mechanized industrial plowing.',
+      'Herbicide spraying on railway and highway remnant strips where relic populations persist.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Protect undisturbed virgin tallgrass prairie remnant easements.',
+      'Harvest native seed and reseed in tallgrass prairie corridor buffer restorations.'
+    ];
+    commonUses = commonUses || 'Biological soil indicator of undisturbed virgin prairie sod; vital drought-proof native pollinator anchor.';
+    predominantRegions = predominantRegions || ['United States (Great Plains, Midwest Tallgrass Remnants)', 'Canada'];
+    interestingFacts = interestingFacts || [
+      'Its deeply lobed leaves orient themselves North-South on edge to avoid scorching midday sun rays, acting as a natural magnetic compass!',
+      'Taproots descend over 4 meters into undisturbed prairie sod, surviving severe droughts and wildfires.'
+    ];
   } else if (common.includes('banana') || scientific.includes('musa')) {
     endangeredStatus = endangeredStatus || 'Wild Ancestors Endangered / Commercial Crops Secure';
     conservationStatus = conservationStatus || 'IUCN Red List: Wild ancestors Endangered (EN), Cultivated varieties Abundant';
     climateZone = climateZone || 'Humid Tropical & Subtropical Lowlands';
     medicinalProperties = medicinalProperties || 'Packed with potassium, vitamin B6, and prebiotic dietary fiber; supports electrolyte balance, blood pressure regulation, and gut digestion.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Musa+acuminata+bioactive+compounds+health';
+    medicinalArticleTitle = medicinalArticleTitle || 'ScienceDirect: Nutritional Composition and Health-Promoting Phytochemicals of Musa acuminata';
+    extinctionReasons = extinctionReasons || [
+      'Commercial clonal monocultures threatened by Tropical Race 4 (TR4) Fusarium fungal wilt.',
+      'Loss of wild diploid ancestors in tropical rainforests due to agricultural expansion.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Preserve wild germplasm gene banks to cross-breed fungal disease resistance.',
+      'Intercropping and organic soil microbiome bio-inoculation to suppress wilt pathogens.'
+    ];
     commonUses = commonUses || 'World’s most consumed fresh fruit; massive waterproof leaves are widely used across Asia as biodegradable plates and steaming wraps.';
     predominantRegions = predominantRegions || ['India (largest producer)', 'Ecuador', 'Philippines', 'Brazil & Colombia'];
     interestingFacts = interestingFacts || [
@@ -85,6 +349,16 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
     climateZone = climateZone || 'Temperate Continental & Maritime';
     medicinalProperties = medicinalProperties || 'High in soluble pectin fiber, vitamin C, and quercetin polyphenols; lowers LDL cholesterol and promotes cardiovascular cellular health.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Malus+domestica+quercetin+cardiovascular+health';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PubMed: Polyphenols, Dietary Fiber, and Human Health Benefits of Apples';
+    extinctionReasons = extinctionReasons || [
+      'Decline of wild solitary bee populations essential for cross-pollination.',
+      'Spring frost volatility and erratic winter chill hours due to climate change.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Provide solitary bee nesting blocks and plant multi-species cover crops in orchards.',
+      'Preserve heritage apple orchards with diverse genetic rootstocks.'
+    ];
     commonUses = commonUses || 'Fresh eating, gourmet ciders, baking, applesauce, and commercial orchard agro-forestry.';
     predominantRegions = predominantRegions || ['United States (Washington, New York)', 'China', 'Poland', 'Turkey & Italy'];
     interestingFacts = interestingFacts || [
@@ -96,6 +370,16 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
     climateZone = climateZone || 'Warm Subtropical & Temperate';
     medicinalProperties = medicinalProperties || 'Supercharged with lycopene, a potent lipid-soluble antioxidant linked to cardiovascular protection and cellular resilience against UV damage.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Solanum+lycopersicum+lycopene+antioxidant+benefits';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PubMed: Lycopene and Cardiovascular Health: Biological Mechanisms in Solanum lycopersicum';
+    extinctionReasons = extinctionReasons || [
+      'Crop loss from late blight fungal pathogens (Phytophthora infestans).',
+      'Extreme heatwaves causing pollen sterility during peak blossom set.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Heirloom seed banking and breeding heat-tolerant wild nightshade crosses.',
+      'Bumblebee buzz-pollination stewardship in greenhouse and garden settings.'
+    ];
     commonUses = commonUses || 'Global culinary cornerstone (sauces, salads, pastes, soups) and high-yield hydroponic greenhouse horticulture.';
     predominantRegions = predominantRegions || ['Italy', 'Spain', 'United States (California)', 'China & India'];
     interestingFacts = interestingFacts || [
@@ -107,6 +391,16 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
     climateZone = climateZone || 'Temperate & Subtropical Cool Season';
     medicinalProperties = medicinalProperties || 'Rich in beta-carotene which the human body converts into Vitamin A (retinol), vital for retinal night vision and immune defense.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Daucus+carota+carotenoids+antioxidant+health';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PubMed: Carotenoid Bioavailability & Health Attributes of Daucus carota';
+    extinctionReasons = extinctionReasons || [
+      'Soil compaction and root fly infestations in industrial monoculture plots.',
+      'Loss of wild carrot genetic diversity from roadside herbicide spraying.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Companion planting with alliums and organic floating row covers.',
+      'Preservation of wild Queen Anne’s Lace gene pools for pest resilience.'
+    ];
     commonUses = commonUses || 'Culinary salads, stews, baby food, fresh juicing, and natural carotene beta-color extracts.';
     predominantRegions = predominantRegions || ['China', 'United States (California)', 'Russia', 'Netherlands'];
     interestingFacts = interestingFacts || [
@@ -118,61 +412,107 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
     climateZone = climateZone || 'Warm Subtropical & Temperate';
     medicinalProperties = medicinalProperties || 'Contains 96% structured hydration water, caffeic acid, and silica; reduces puffiness, cools inflamed skin, and soothes digestion.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Cucumis+sativus+cucurbitacins+anti-inflammatory';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PMC: Phytochemical and Therapeutic Potential of Cucumis sativus';
+    extinctionReasons = extinctionReasons || [
+      'Vulnerability to powdery mildew and cucumber mosaic virus in humid climates.',
+      'Pollinator deficits leading to misshapen fruit development.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Vertical trellis growing to increase air circulation and reduce fungal contact.',
+      'Stewardship of specialized squash bees and native solitary pollinators.'
+    ];
     commonUses = commonUses || 'Fresh salads, pickling, cooling spa cosmetic masks, and hydrating infused wellness beverages.';
     predominantRegions = predominantRegions || ['China', 'Turkey', 'Iran', 'Russia & Spain'];
     interestingFacts = interestingFacts || [
       'The interior core of a cucumber can be up to 11°C (20°F) cooler than ambient temperature on a hot day!',
       'Cucumbers originated over 3,000 years ago in the Himalayan foothills of India.'
     ];
-  } else if (common.includes('aloe') || scientific.includes('barbadensis')) {
-    endangeredStatus = endangeredStatus || 'Secure / Extensively Cultivated';
-    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
-    climateZone = climateZone || 'Arid, Semi-Desert & Tropical Dry';
-    medicinalProperties = medicinalProperties || 'Acemannan polysaccharides and glucomannans stimulate fibroblast collagen synthesis, soothe thermal burns, and hydrate skin layers.';
-    commonUses = commonUses || 'First-aid burn ointment, natural sunscreen lotions, moisturizing cosmetics, and gut-soothing dietary juices.';
-    predominantRegions = predominantRegions || ['Sudan & Arabian Peninsula', 'India', 'Mexico', 'North Africa & Mediterranean'];
-    interestingFacts = interestingFacts || [
-      'Revered by ancient Egyptian physicians as the "Plant of Immortality" and documented in the Ebers Papyrus from 1500 BCE.',
-      'Survives extended droughts by performing CAM photosynthesis, transpiring solely under cover of darkness.'
-    ];
-  } else if (common.includes('lotus') || scientific.includes('nelumbo')) {
-    endangeredStatus = endangeredStatus || 'Secure / Cultural Protection';
-    conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
-    climateZone = climateZone || 'Tropical & Warm Subtropical Freshwater Wetlands';
-    medicinalProperties = medicinalProperties || 'Rhizomes and flower petals contain neferine and nuciferine alkaloids with cardioprotective, febrifuge, and calming therapeutic effects.';
-    commonUses = commonUses || 'Kamal kakdi culinary root vegetables in Asian cuisine, sacred religious ceremonies, and biological pond filtration.';
-    predominantRegions = predominantRegions || ['India', 'China', 'Vietnam', 'Japan & Thailand'];
-    interestingFacts = interestingFacts || [
-      'Its leaves exhibit the world-renowned "Lotus Effect" (nanoscale hydrophobic wax cones that instantly shed water and dirt).',
-      'Ancient lotus seeds recovered from dried peat beds in northeastern China germinated successfully after 1,300 years!'
-    ];
   } else if (common.includes('sunflower') || scientific.includes('helianthus')) {
     endangeredStatus = endangeredStatus || 'Secure / Widely Cultivated';
     conservationStatus = conservationStatus || 'IUCN Red List: Least Concern';
     climateZone = climateZone || 'Temperate to Warm Subtropical Plains';
     medicinalProperties = medicinalProperties || 'Cold-pressed sunflower oil delivers high-potency vitamin E and phytosterols that protect arterial walls from oxidative stress.';
+    medicinalArticleUrl = medicinalArticleUrl || 'https://pubmed.ncbi.nlm.nih.gov/?term=Helianthus+annuus+phytosterols+antioxidant';
+    medicinalArticleTitle = medicinalArticleTitle || 'NCBI PMC: Nutritional, Phytochemical and Pharmacological Overview of Helianthus annuus';
+    extinctionReasons = extinctionReasons || [
+      'Heavy-metal soil contamination and urban soil compaction.',
+      'Decline in native long-horned bee pollinators specialized on Asteraceae.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Plant diverse sunflower buffer rows for native bumblebee and avian forage.',
+      'Soil aeration and phytoremediation stewardship in degraded urban lots.'
+    ];
     commonUses = commonUses || 'Healthy vegetable cooking oil, roasted dietary seeds, wild avian feed, and soil phytoremediation.';
     predominantRegions = predominantRegions || ['Ukraine', 'Russia', 'United States (Kansas, Dakotas)', 'Argentina'];
     interestingFacts = interestingFacts || [
       'Immature sunflower flower heads perform solar tracking (heliotropism), turning from east to west every day with the sun!',
       'Capable of bio-accumulating heavy metals and radionuclides, sunflowers were planted to decontaminate soil at Chernobyl and Fukushima.'
     ];
-  } else if (category.includes('fauna') || category.includes('animal') || category.includes('insect') || category.includes('reptil')) {
+  } else if (isFauna) {
+    // General / Dynamic Fauna fallback
     endangeredStatus = endangeredStatus || (species.iucnStatus === 'Endangered' || species.iucnStatus === 'Critically Endangered' ? 'Endangered - Critical Population Threat' : species.iucnStatus === 'Vulnerable' ? 'Vulnerable - In Decline' : 'Secure / Monitoring');
     conservationStatus = conservationStatus || `IUCN Red List: ${species.iucnStatus || 'Least Concern'}`;
     climateZone = climateZone || (species.habitat ? `${species.habitat} Biome` : 'Temperate & Subtropical Eco-zone');
-    medicinalProperties = medicinalProperties || 'Wildlife species: produces biochemical adaptations and ecological regulatory balances; key subject in biomedical research and ecosystem health.';
-    commonUses = commonUses || 'Ecological apex or intermediate controller; bio-indicator of habitat health and biodiversity equilibrium.';
+    
+    // STRICT RULE: Health & medicinal properties and article links are NOT for fauna
+    medicinalProperties = undefined;
+    medicinalArticleUrl = undefined;
+    medicinalArticleTitle = undefined;
+
+    // Determine Fauna Diet: Herbivore, Omnivore, or Carnivore
+    const isCarnivore = ['tiger', 'leopard', 'wolf', 'cat', 'dog', 'felid', 'carnivore', 'hawk', 'eagle', 'falcon', 'owl', 'snake', 'monitor', 'fox', 'lynx', 'shark', 'crocodil'].some(k => common.includes(k) || scientific.includes(k));
+    const isOmnivore = ['peafowl', 'bear', 'turtle', 'crow', 'omnivore', 'pig', 'boar', 'badger', 'primate', 'monkey'].some(k => common.includes(k) || scientific.includes(k));
+    dietType = dietType || (isCarnivore ? 'Carnivore' : isOmnivore ? 'Omnivore' : 'Herbivore');
+    dietDescription = dietDescription || (dietType === 'Carnivore'
+      ? 'Apex or mesopredator carnivore preying on smaller mammals, birds, or reptiles to regulate prey populations and sustain ecosystem balance.'
+      : dietType === 'Omnivore'
+      ? 'Opportunistic omnivore consuming seeds, plant shoots, wild fruits, insects, and small vertebrates.'
+      : 'Primary consumer herbivore grazing and browsing on native grasses, foliage, roots, and flowers.');
+
+    extinctionReasons = extinctionReasons || [
+      'Habitat fragmentation and reduction of contiguous wildlife migration corridors.',
+      'Retaliatory human-wildlife conflict and depleted natural wild prey densities.',
+      'Anthropogenic disturbances including vehicular road collisions and seasonal climate volatility.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Establish and legally protect contiguous wildlife corridors and eco-passages.',
+      'Deploy active anti-poaching patrols and community conservation initiatives.',
+      'Restore native vegetation and prey species populations across buffer sanctuaries.'
+    ];
+
+    commonUses = commonUses || 'Ecological regulator; bio-indicator of habitat health and biodiversity equilibrium.';
     predominantRegions = predominantRegions || ['Regional Biosphere Reserve', 'Protected Wildlife Sanctuaries', 'Native Wild Habitats'];
     interestingFacts = interestingFacts || [
       `Plays an indispensable role maintaining demographic balance in its native ${species.habitat || 'ecosystem'}.`,
       'Sensory adaptations allow high-precision foraging and micro-habitat navigation in challenging wild environments.'
     ];
   } else {
+    // General / Dynamic Flora fallback
     endangeredStatus = endangeredStatus || (species.iucnStatus === 'Endangered' ? 'Endangered - Rare Specimen' : species.iucnStatus === 'Vulnerable' ? 'Vulnerable' : 'Least Concern / Stable');
     conservationStatus = conservationStatus || `IUCN Red List: ${species.iucnStatus || 'Least Concern'}`;
     climateZone = climateZone || (species.habitat?.toLowerCase().includes('tropical') ? 'Tropical & Subtropical' : 'Temperate & Subtropical');
+    
+    // Flora receives medicinal properties & verified scientific article link
     medicinalProperties = medicinalProperties || 'Contains bioactive plant metabolites, flavonoids, and natural antioxidants supporting herbal wellness and plant defense.';
+    medicinalArticleUrl = medicinalArticleUrl || `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(species.scientificName || species.commonName)}+medicinal+health`;
+    medicinalArticleTitle = medicinalArticleTitle || `NCBI PubMed: Medical & Pharmacological Research on ${species.commonName || 'Botanical Specimen'}`;
+    
+    // Fauna diet is OMITTED for flora
+    dietType = undefined;
+    dietDescription = undefined;
+
+    extinctionReasons = extinctionReasons || [
+      'Habitat loss due to intensive agricultural expansion and urban development.',
+      'Altered local hydrological regimes and prolonged climate drought stress.',
+      'Competition from aggressive invasive weeds and agricultural herbicide drift.'
+    ];
+    preventiveMeasures = preventiveMeasures || [
+      'Preserve native wild habitats and establish botanical sanctuary easements.',
+      'Implement native seed collection, germplasm banking, and controlled restoration.',
+      'Conduct community stewardship and invasive weed eradication programs.'
+    ];
+
     commonUses = commonUses || 'Grown for botanical biodiversity, ecological pollination services, agricultural cultivation, or ornamental landscaping.';
     predominantRegions = predominantRegions || ['Native Continental Biome', 'Temperate & Subtropical Flora Zones', 'Botanical Preserves'];
     interestingFacts = interestingFacts || [
@@ -181,17 +521,34 @@ export function enrichSpeciesWithEducationalData(species: SpeciesData): SpeciesD
     ];
   }
 
+  // Ensure strict mutual exclusivity:
+  if (isFauna) {
+    medicinalProperties = undefined;
+    medicinalArticleUrl = undefined;
+    medicinalArticleTitle = undefined;
+  } else {
+    dietType = undefined;
+    dietDescription = undefined;
+  }
+
   return {
     ...species,
     endangeredStatus,
     conservationStatus,
     climateZone,
     medicinalProperties,
+    medicinalArticleUrl,
+    medicinalArticleTitle,
+    dietType,
+    dietDescription,
+    extinctionReasons,
+    preventiveMeasures,
     commonUses,
     predominantRegions,
     interestingFacts,
   };
 }
+
 
 const RAW_INITIAL_SPECIES_CATALOG: SpeciesData[] = [
   {

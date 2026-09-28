@@ -8,6 +8,7 @@ import {
   SurveyRecord,
   GoogleLensIdentification,
   ChassisTheme,
+  isFaunaSpecies,
 } from '../types';
 import { INITIAL_SPECIES_CATALOG, enrichSpeciesWithEducationalData } from '../data/species';
 import { soundFX } from '../utils/audio';
@@ -374,6 +375,12 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       conservationStatus: rawData?.conservationStatus,
       climateZone: rawData?.climateZone || rawData?.habitatType,
       medicinalProperties: rawData?.medicinalProperties,
+      medicinalArticleUrl: rawData?.medicinalArticleUrl,
+      medicinalArticleTitle: rawData?.medicinalArticleTitle,
+      dietType: rawData?.dietType,
+      dietDescription: rawData?.dietDescription,
+      extinctionReasons: rawData?.extinctionReasons,
+      preventiveMeasures: rawData?.preventiveMeasures,
       commonUses: rawData?.commonUses,
       predominantRegions: Array.isArray(rawData?.predominantRegions) ? rawData.predominantRegions : undefined,
       interestingFacts: Array.isArray(rawData?.interestingFacts) ? rawData.interestingFacts : rawData?.googleLensFact ? [rawData.googleLensFact] : undefined,
@@ -1087,29 +1094,35 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             </div>
 
             {/* Quick Educational Synopsis Snippet */}
-            {(activeSpecimen.medicinalProperties || activeSpecimen.commonUses) && (
-              <div
-                onClick={() => setIsDossierModalOpen(true)}
-                className="bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-2.5 mb-3 border border-slate-100 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-1">
-                  <span className="flex items-center gap-1 text-emerald-700 font-bold">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    Botanical Properties & Uses
-                  </span>
-                  <span className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5">
-                    Full Dossier <ChevronRight className="w-3 h-3" />
-                  </span>
+            {(() => {
+              const isFauna = isFaunaSpecies(activeSpecimen);
+              return (
+                <div
+                  onClick={() => setIsDossierModalOpen(true)}
+                  className="bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-2.5 mb-3 border border-slate-100 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-1">
+                    <span className={`flex items-center gap-1 font-bold ${isFauna ? 'text-amber-800' : 'text-emerald-700'}`}>
+                      <Sparkles className={`w-3.5 h-3.5 ${isFauna ? 'text-amber-600' : 'text-emerald-600'}`} />
+                      {isFauna ? `Fauna Diet (${activeSpecimen.dietType || 'Trophic Level'}) & Extinction Profile` : 'Botanical Health & Medicinal Profile'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5">
+                      Full Dossier <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-700 font-sans line-clamp-2 leading-relaxed">
+                    {isFauna
+                      ? activeSpecimen.dietDescription ||
+                        `${activeSpecimen.dietType || 'Fauna'} diet. Tap to explore full zoological dossier with extinction causes and preventive measures.`
+                      : typeof activeSpecimen.medicinalProperties === 'string'
+                      ? `${activeSpecimen.medicinalProperties} (Tap to read verified medical article)`
+                      : typeof activeSpecimen.commonUses === 'string'
+                      ? activeSpecimen.commonUses
+                      : activeSpecimen.biologistMemo?.details || 'Tap to explore full botanical and pharmacological profile.'}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-700 font-sans line-clamp-2 leading-relaxed">
-                  {typeof activeSpecimen.medicinalProperties === 'string'
-                    ? activeSpecimen.medicinalProperties
-                    : typeof activeSpecimen.commonUses === 'string'
-                    ? activeSpecimen.commonUses
-                    : activeSpecimen.biologistMemo?.details || 'Tap to explore full botanical and pharmacological profile.'}
-                </p>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Three Action Buttons: Full Dossier, BioDex, Predict */}
             <div className="grid grid-cols-3 gap-2 pt-0.5">
@@ -1119,10 +1132,18 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                   soundFX.playClick();
                   setIsDossierModalOpen(true);
                 }}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 font-bold text-xs border border-emerald-200/80 transition-all cursor-pointer font-sans"
-                title="Open comprehensive botanical dossier"
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl font-bold text-xs border transition-all cursor-pointer font-sans ${
+                  isFaunaSpecies(activeSpecimen)
+                    ? 'bg-amber-50 hover:bg-amber-100/80 text-amber-800 border-amber-200/80'
+                    : 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border-emerald-200/80'
+                }`}
+                title={
+                  isFaunaSpecies(activeSpecimen)
+                    ? 'Open comprehensive zoological dossier (diet, extinction causes & prevention)'
+                    : 'Open comprehensive botanical dossier (medicinal article, climate & educational facts)'
+                }
               >
-                <BookOpen className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <BookOpen className={`w-3.5 h-3.5 shrink-0 ${isFaunaSpecies(activeSpecimen) ? 'text-amber-700' : 'text-emerald-700'}`} />
                 <span className="truncate">Dossier</span>
               </button>
 

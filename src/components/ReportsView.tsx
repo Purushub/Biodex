@@ -44,7 +44,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [apiLatency, setApiLatency] = useState({ gbif: 24, iucn: 38, inat: 18 });
   const [downloadSuccessToast, setDownloadSuccessToast] = useState(false);
 
-  // Manager authentication state for deleting entries (pm@skillizee.io / 12345)
+  // Manager authentication state for deleting entries
   const isSessionManager = Boolean(
     session?.isManager ||
     session?.userEmail?.toLowerCase() === 'pm@skillizee.io' ||
@@ -62,7 +62,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   });
 
   const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
-  const [managerEmail, setManagerEmail] = useState('pm@skillizee.io');
+  const [managerEmail, setManagerEmail] = useState('');
   const [managerPassword, setManagerPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [managerAuthError, setManagerAuthError] = useState<string | null>(null);
@@ -129,7 +129,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
 
     soundFX.playCancel();
-    setManagerAuthError('Invalid credentials. Only pm@skillizee.io with pass 12345 can remove entries.');
+    setManagerAuthError('Invalid credentials. Please enter authorized manager credentials.');
   };
 
   const handleLockManager = () => {
@@ -448,7 +448,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                 <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                pm@skillizee.io (Manager)
+                Manager Mode (Active)
               </span>
               <button
                 type="button"
@@ -468,10 +468,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 setIsManagerModalOpen(true);
               }}
               className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-all cursor-pointer"
-              title="Authenticate as pm@skillizee.io to delete entries"
+              title="Authenticate with Manager credentials to delete entries"
             >
               <Lock className="w-3 h-3 text-amber-600" />
-              Manager Access (pm@skillizee.io)
+              Manager Access
             </button>
           )}
         </div>
@@ -715,7 +715,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-600 my-3 leading-relaxed">
-              Only authorized personnel (<strong className="text-slate-900 font-mono">pm@skillizee.io</strong>) have permission to delete entries from the People's Biodiversity Register.
+              Only authorized personnel have permission to delete entries from the People's Biodiversity Register.
             </p>
 
             <form onSubmit={handleManagerLogin} className="space-y-3">
@@ -727,7 +727,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   type="text"
                   value={managerEmail}
                   onChange={(e) => setManagerEmail(e.target.value)}
-                  placeholder="pm@skillizee.io"
+                  placeholder="Enter manager email"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none"
                   required
                 />
@@ -742,7 +742,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     type={showPassword ? 'text' : 'password'}
                     value={managerPassword}
                     onChange={(e) => setManagerPassword(e.target.value)}
-                    placeholder="Enter password (12345)"
+                    placeholder="Enter manager password"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 pr-9 text-xs font-mono font-bold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none"
                     required
                     autoFocus
@@ -767,7 +767,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {managerAuthSuccess && (
                 <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span className="font-bold">Authorized! Deletion unlocked for pm@skillizee.io.</span>
+                  <span className="font-bold">Authorized! Deletion unlocked.</span>
                 </div>
               )}
 

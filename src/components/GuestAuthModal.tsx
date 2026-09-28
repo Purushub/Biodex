@@ -42,8 +42,8 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Manager Login State (pm@skillizee.io / 12345)
-  const [managerEmail, setManagerEmail] = useState('pm@skillizee.io');
+  // Manager Login State
+  const [managerEmail, setManagerEmail] = useState('');
   const [managerPassword, setManagerPassword] = useState('');
   const [showManagerPassword, setShowManagerPassword] = useState(false);
   const [managerError, setManagerError] = useState<string | null>(null);
@@ -145,7 +145,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
     }
 
     soundFX.playCancel();
-    setManagerError('Invalid credentials. Only pm@skillizee.io with pass 12345 can log in as manager.');
+    setManagerError('Invalid credentials. Please enter authorized manager credentials.');
   };
 
   const handleManagerLogout = () => {
@@ -237,7 +237,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
             }`}
           >
             <KeyRound className="w-3.5 h-3.5" />
-            Manager (pm@skillizee.io)
+            Manager Access
           </button>
         </div>
 
@@ -248,7 +248,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
                 <div className="flex items-center gap-2 text-emerald-800">
                   <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div>
-                    <h3 className="text-xs font-bold font-mono">pm@skillizee.io (Active)</h3>
+                    <h3 className="text-xs font-bold font-mono">Manager Mode (Active)</h3>
                     <p className="text-[11px] text-emerald-700">Project Manager Entry Deletion Enabled</p>
                   </div>
                 </div>
@@ -263,7 +263,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
             ) : (
               <form onSubmit={handleManagerLogin} className="space-y-3">
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Log in as <strong className="font-mono text-slate-900">pm@skillizee.io</strong> to manage and delete entries from the register.
+                  Log in with authorized manager credentials to manage and delete entries from the register.
                 </p>
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -273,7 +273,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
                     type="text"
                     value={managerEmail}
                     onChange={(e) => setManagerEmail(e.target.value)}
-                    placeholder="pm@skillizee.io"
+                    placeholder="Enter manager email"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none"
                     required
                   />
@@ -288,7 +288,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
                       type={showManagerPassword ? 'text' : 'password'}
                       value={managerPassword}
                       onChange={(e) => setManagerPassword(e.target.value)}
-                      placeholder="Enter password (12345)"
+                      placeholder="Enter manager password"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 pr-9 text-xs font-mono font-bold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none"
                       required
                     />

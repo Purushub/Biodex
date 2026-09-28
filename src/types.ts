@@ -44,6 +44,12 @@ export interface GoogleLensIdentification {
   conservationStatus?: string;
   climateZone?: string;
   medicinalProperties?: string | string[];
+  medicinalArticleUrl?: string;
+  medicinalArticleTitle?: string;
+  dietType?: 'Herbivore' | 'Omnivore' | 'Carnivore' | string;
+  dietDescription?: string;
+  extinctionReasons?: string | string[];
+  preventiveMeasures?: string | string[];
   commonUses?: string | string[];
   predominantRegions?: string[];
   interestingFacts?: string[];
@@ -104,6 +110,12 @@ export interface SpeciesData {
   conservationStatus?: string;
   climateZone?: string;
   medicinalProperties?: string | string[];
+  medicinalArticleUrl?: string;
+  medicinalArticleTitle?: string;
+  dietType?: 'Herbivore' | 'Omnivore' | 'Carnivore' | string;
+  dietDescription?: string;
+  extinctionReasons?: string | string[];
+  preventiveMeasures?: string | string[];
   commonUses?: string | string[];
   predominantRegions?: string[];
   interestingFacts?: string[];
@@ -250,5 +262,37 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   groundingChunks?: GroundingChunk[];
+}
+
+/**
+ * Robust helper to distinguish Fauna (animals, birds, insects, reptiles)
+ * from Flora (plants, trees, flowers, crops, fruits).
+ */
+export function isFaunaSpecies(
+  species?: {
+    category?: string;
+    taxonomy?: { kingdom?: string };
+    commonName?: string;
+    scientificName?: string;
+  } | null
+): boolean {
+  if (!species) return false;
+  const cat = (species.category || '').toLowerCase();
+  const kingdom = (species.taxonomy?.kingdom || '').toLowerCase();
+  if (cat === 'fauna' || cat === 'insecta' || cat === 'reptilia' || kingdom === 'animalia') {
+    return true;
+  }
+  if (cat === 'flora' || cat === 'fruit & crop' || kingdom === 'plantae') {
+    return false;
+  }
+  const name = `${species.commonName || ''} ${species.scientificName || ''}`.toLowerCase();
+  const faunaIndicators = [
+    'tiger', 'leopard', 'wolf', 'butterfly', 'bee', 'turtle', 'bird',
+    'peafowl', 'deer', 'gazelle', 'chinkara', 'lizard', 'reptile',
+    'mammal', 'insect', 'animal', 'carnivore', 'herbivore', 'omnivore',
+    'felid', 'panthera', 'bovidae', 'phasianidae', 'canis', 'dog', 'cat', 'bear',
+    'falcon', 'eagle', 'elephant', 'rhino', 'fox', 'lynx', 'badger', 'snake'
+  ];
+  return faunaIndicators.some((w) => name.includes(w));
 }
 

@@ -171,24 +171,40 @@ CRITICAL INSTRUCTIONS:
 2. If it is a plant, fruit, fungus, or animal, provide its authentic binomial scientific name (Genus species), taxonomic hierarchy (kingdom, phylum, class, order, family, genus), and IUCN conservation status.
 3. Determine endangered risk: whether the species is endangered or likely to become endangered (e.g. "Endangered - High Risk of Extinction", "Vulnerable - In Decline", "Near Threatened - Under Monitoring", or "Secure / Least Concern").
 4. Specify climate/biome classification (e.g., Tropical, Subtropical, Temperate, Arid/Desert, Alpine, Mediterranean).
-5. Specify medicinal properties and therapeutic uses (e.g. active healing compounds, soothing properties, anti-inflammatory, digestive aid, or "Non-medicinal / Ornamental" if none).
-6. Specify where and how the plant/specimen is commonly used (e.g. culinary spice, skincare cosmetics, herbal tea, indoor air purification, traditional craftsmanship, agroforestry).
-7. List 2 to 4 major countries or geographic regions where it is predominantly found.
-8. Provide 2-3 fascinating, memorable, and educational facts about the species.
-9. Provide 4 specific visual diagnostic features clearly visible in this specific photo (e.g., surface texture, tepal/petal symmetry, anther morphology, venation, contour, pigmentation).
-10. Provide a rich 2-3 sentence Google Lens overview explaining the subject, where it originates, its characteristics, and why it is significant.
+5. CRITICAL FLORA VS FAUNA RULES:
+   - For FLORA (plants, flowers, herbs, trees, fruits, crops, vegetables):
+     * Specify medicinal properties and therapeutic uses.
+     * Provide a reputable scientific or medical article link in "medicinalArticleUrl" (e.g. PubMed/NCBI scholarly URL: "https://pubmed.ncbi.nlm.nih.gov/?term=[Species]+medicinal") and article title in "medicinalArticleTitle".
+     * Set "dietType" and "dietDescription" to null.
+   - For FAUNA (animals, mammals, birds, reptiles, insects, amphibians, fish):
+     * Do NOT provide medicinal properties or article links (set "medicinalProperties", "medicinalArticleUrl", and "medicinalArticleTitle" to null).
+     * Provide "dietType" classified strictly as: "Herbivore", "Omnivore", or "Carnivore".
+     * Provide "dietDescription" explaining what it eats, prey or foraging habits, and its trophic level in the ecosystem.
+6. Provide "extinctionReasons": 2-3 specific primary reasons or threats driving population decline/extinction risk (e.g. habitat fragmentation, poaching, vehicular collisions, pesticide toxicity, climate volatility).
+7. Provide "preventiveMeasures": 2-3 specific preventive conservation measures to prevent extinction (e.g. wildlife corridors, anti-poaching enforcement, reserve zoning, native habitat restoration).
+8. Specify where and how the specimen is commonly used or its ecological role.
+9. List 2 to 4 major countries or geographic regions where it is predominantly found.
+10. Provide 2-3 fascinating, memorable, and educational facts about the species.
+11. Provide 4 specific visual diagnostic features clearly visible in this specific photo (e.g., surface texture, tepal/petal symmetry, anther morphology, venation, contour, pigmentation).
+12. Provide a rich 2-3 sentence Google Lens overview explaining the subject, where it originates, its characteristics, and why it is significant.
 
 Return a valid JSON object ONLY with the following schema:
 {
   "commonName": "string (Exact common name)",
-  "scientificName": "string (Genus and species binomial, e.g. Lilium orientalis, Musa acuminata)",
+  "scientificName": "string (Genus and species binomial, e.g. Lilium orientalis, Panthera tigris)",
   "confidence": number (visual match percentage between 89.0 and 99.8),
   "description": "string (Engaging 2-3 sentence Google Lens overview)",
   "endangeredStatus": "string (e.g. Endangered - High Risk of Extinction | Vulnerable | Near Threatened | Secure / Least Concern)",
   "conservationStatus": "string (e.g. IUCN Red List: Endangered (EN) | Vulnerable (VU) | Least Concern (LC))",
   "climateZone": "string (e.g. Tropical & Subtropical | Temperate Grassland | Arid & Semi-Desert | Mediterranean)",
-  "medicinalProperties": "string (Detailed medicinal qualities, bioactive compounds, and therapeutic applications)",
-  "commonUses": "string (Where and how the plant is commonly used: culinary, cosmetic, decorative, agroforestry, cultural)",
+  "medicinalProperties": "string (Only for flora, null for fauna)",
+  "medicinalArticleUrl": "string (PubMed/NCBI scholarly article URL for flora, null for fauna)",
+  "medicinalArticleTitle": "string (Title of health/medicinal research paper, null for fauna)",
+  "dietType": "Herbivore" | "Omnivore" | "Carnivore" | null (Only for fauna, null for flora),
+  "dietDescription": "string (Only for fauna, null for flora)",
+  "extinctionReasons": ["string", "string"],
+  "preventiveMeasures": ["string", "string"],
+  "commonUses": "string (Where and how the plant is commonly used, or ecological role)",
   "predominantRegions": ["string", "string", "string"],
   "interestingFacts": ["string", "string"],
   "visualFeatures": ["string", "string", "string", "string"],
