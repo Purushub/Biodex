@@ -1,191 +1,246 @@
 # WWF BioDex: Junior Field Researcher SOP
-## Standard Operating Procedure for Biodiversity Documentation & Specimen Analysis
+## Standard Operating Procedure & Interactive Visual Tutorial for Biodiversity Documentation
 
-Document Version: 2.4  
-Target Audience: Student Researchers, Science Teachers, Classroom Naturalists  
-System: WWF BioDex (Localhost & Web Deployments)  
-Constraint Check: No Emojis Used  
-
----
-
-## 1. Mission Overview
-
-Welcome to the WWF BioDex field research program. As a student researcher, your goal is to observe, photograph, and catalog biological specimens in your local schoolyard, community garden, park, or forest. 
-
-The BioDex system pairs your camera with advanced artificial intelligence and scientific databases to identify living organisms, examine their ecological roles, study medical uses of plants, determine animal feeding habits, and identify conservation actions needed to protect endangered species.
+Document Version: 3.0  
+Target Audience: Student Field Naturalists, STEM Educators, Classroom Researchers  
+System Architecture: WWF BioDex Field Expedition Platform (Localhost & Web Deployments)  
+Design Methodology: Visual Product Walkthrough inspired by latent-spaces/brag  
+Constraint Verification: Strict Zero-Emoji Rule Enforced  
 
 ---
 
-## 2. Equipment & Localhost Setup
+## 1. Program Mission & Executive Overview
 
-Before beginning your field survey, confirm your equipment is ready:
+Welcome to the World Wildlife Fund (WWF) BioDex Field Research Program. As a student researcher, your mission is to explore, photograph, analyze, and catalog living organisms in your local ecosystem, whether in schoolyards, botanical gardens, wetlands, or community reserves.
 
-1. **Hardware**: A laptop, tablet, or smartphone equipped with a camera.
-2. **Software**: A modern web browser (Google Chrome, Mozilla Firefox, or Microsoft Edge).
-3. **Localhost Address**: Open your browser and navigate to:
+The BioDex system pairs your camera device with dual-engine computer vision (Google Gemini Multimodal Vision and local MobileNet neural fallbacks) to identify species in real time, extract diagnostic ecological facts, evaluate extinction vulnerabilities, and record verified entries into the People's Biodiversity Register (PBR).
+
+---
+
+## 2. Equipment Checklist & Localhost Deployment
+
+Before commencing your field expedition, verify your equipment station:
+
+1. **Hardware**: A tablet, laptop, or mobile workstation equipped with an optical camera sensor.
+2. **Web Browser**: A modern standards-compliant browser (Google Chrome, Microsoft Edge, or Mozilla Firefox).
+3. **Localhost Server Endpoint**:
    ```text
    http://localhost:3001
    ```
-4. **Active Connection**: Ensure the WWF BioDex server displays the main dashboard with the Live Scanner, Species Catalog, and BioDex Field Journal.
+4. **Offline Capability**: Field surveys run entirely offline through browser local storage. Cloud sync with Firebase Firestore activates automatically when an internet uplink is available.
 
 ---
 
-## 3. Standard 5-Step Research Workflow
+## 3. Interactive Walkthrough: The 6-Beat Field Workflow
 
 ```mermaid
 flowchart TD
-    A[Step 1: Capture or Choose Photo] --> B[Step 2: Upload to Live Scanner]
-    B --> C{AI Classification: What is it?}
-    C -->|Botanical Specimen / Plant| D[Step 3A: Botanical Dossier]
-    C -->|Zoological Specimen / Animal| E[Step 3B: Zoological Dossier]
-    D --> F[Examine Health & Medicinal Properties]
-    D --> G[Click PubMed Research Article Link]
-    E --> H[Examine Diet: Herbivore / Omnivore / Carnivore]
-    E --> I[Examine Feeding Habits & Trophic Level]
-    D --> J[Step 4: Review Extinction Causes & Conservation Actions]
-    E --> J
-    J --> K[Step 5: Register into BioDex Field Journal]
+    A[Beat 1: Access Portal & Guest Onboarding] --> B[Beat 2: Live Optical Scanner & Camera HUD]
+    B --> C[Beat 3: Specimen Confirmation & Custom Field Naming]
+    C --> D{Beat 4: Branching Scientific Dossier}
+    D -->|Botanical Flora| E[Botanical Dossier: Phyto-Compounds & PubMed Link]
+    D -->|Zoological Fauna| F[Zoological Dossier: Diet Triage & Trophic Roles]
+    E --> G[Beat 5: PVA Extinction Risk Modeling & Conservation Levers]
+    F --> G
+    G --> H[Beat 6: PBR Verified Register Ledger & Audit Controls]
 ```
 
 ---
 
-### Step 1: Capturing the Specimen
+### Beat 1: BioDex Access Portal & Guest Onboarding
 
-High-quality observations lead to accurate scientific identifications. Follow these three photography rules:
+When starting the application, the BioDex Access Portal presents three distinct access pathways designed for students, cloud accounts, and classroom managers:
 
-- **Framing**: Place the primary subject in the center of the viewfinder. Fill at least 50 percent of the frame with the organism.
-- **Lighting**: Avoid heavy backlighting. Direct morning or afternoon natural sunlight produces the clearest diagnostic features.
-- **Diagnostic Details**:
-  - For Plants: Capture leaves, flowers, bark, or seed pods.
-  - For Animals: Capture the head, body profile, limbs, fur patterns, or scale textures.
+<div class="visual-figure">
+  <div class="app-frame" style="max-width: 480px;">
+    <img src="images/portal_modal_clean.png" alt="BioDex Access Portal with Guest Login" />
+  </div>
+  <p class="figure-caption">Figure 1: The BioDex Access Portal featuring instant Guest Login, Google Cloud Sync, and Teacher/Manager Access.</p>
+</div>
 
----
-
-### Step 2: Uploading to the Live Scanner
-
-1. On the BioDex navigation menu, select **Scanner**.
-2. Choose one of two capture methods:
-   - **Live Camera**: Click *Open Camera*, line up the subject in the targeting reticle, and click *Capture Specimen*.
-   - **Image Upload**: Click *Upload Photo* to select an existing photograph from your device.
-3. The system processes the image through the neural network and returns a preliminary match with confidence ratings and taxonomic names.
-4. Click **View Full Dossier** to inspect the comprehensive scientific report.
+1. **Guest Login (Default & Recommended for Students)**:
+   - Click the prominent **Continue as Guest Naturalist** button.
+   - Requires no email, password, or cloud account.
+   - All catalog entries, scans, and PVA simulation data save directly into the device's local browser memory.
+   - Click **Customize Student Call Sign / Class** to personalize your field handle (e.g., `BIO-7842`) and classroom expedition code (e.g., `BIO-EXPEDITION-2026`).
+2. **Google Cloud Sync**: Connects student accounts across multiple classroom devices.
+3. **Manager Access**: Restricted administrative portal for teachers to review and manage student observation records.
 
 ---
 
-### Step 3: Branching Scientific Dossiers (Flora vs. Fauna)
+### Beat 2: Live Optical Scanner & Camera Viewfinder
 
-The WWF BioDex strictly separates plant biology from animal biology to ensure scientific accuracy.
+Once onboarded, navigate to the **Scanner** tab in the bottom dock.
 
+<div class="mockup-scanner-card">
+  <div class="scanner-hud-header">
+    <span class="hud-tag">HUD SENSOR: ACTIVE</span>
+    <span class="hud-coords">SECTOR 7G | LAT: 41.8781 N | LON: 87.6298 W</span>
+    <span class="hud-fps">60 FPS 4K OPTICAL</span>
+  </div>
+  <div class="scanner-viewfinder">
+    <div class="reticle-box">
+      <div class="reticle-corner top-left"></div>
+      <div class="reticle-corner top-right"></div>
+      <div class="reticle-corner bottom-left"></div>
+      <div class="reticle-corner bottom-right"></div>
+      <div class="reticle-crosshair">+</div>
+      <div class="hud-match-chip">MATCH DETECTED: 98.6% CONFIDENCE</div>
+    </div>
+  </div>
+  <div class="scanner-controls-bar">
+    <div class="scanner-btn secondary">[FREEZE RETICLE]</div>
+    <div class="scanner-btn primary">[CONFIRM SPECIMEN & LOG]</div>
+    <div class="scanner-btn secondary">[DOSSIER PREVIEW]</div>
+  </div>
+</div>
+
+#### Photography Protocol for Accurate AI Identification
+- **Framing**: Center the organism so it fills at least 50 percent of the targeting viewfinder.
+- **Lighting**: Photograph with natural morning or afternoon sunlight. Avoid shooting directly into backlit sun glare.
+- **Diagnostic Botanical Features**: Capture leaf margins, vein patterns, floral symmetry, and stem arrangements.
+- **Diagnostic Zoological Features**: Capture facial profiles, limb structure, plumage patterns, or scale textures.
+
+---
+
+### Beat 3: Species Catalog & Saved Discoveries
+
+Every confirmed specimen is immediately registered into the BioDex Species Catalog and cross-referenced with regional wildlife census databases.
+
+<div class="visual-figure">
+  <div class="app-frame" style="max-width: 480px;">
+    <img src="images/catalog_cards_clean.png" alt="BioDex Species Catalog with Saved Badges and Deletion Controls" />
+  </div>
+  <p class="figure-caption">Figure 2: Species Catalog displaying user-saved specimens (Grizzly Bear, Prairie Orchid, Blanding's Turtle, Bengal Tiger) with SAVED badges, confidence scores, and individual deletion controls.</p>
+</div>
+
+#### Catalog Management Features
+1. **Saved Badges**: Observations confirmed in the field are tagged with an indigo **SAVED** indicator and prioritized at the top of your catalog.
+2. **Direct Specimen Removal**: Click the trash can icon beside any user-saved specimen to delete it from both the local catalog and the PBR field register.
+3. **Filter Pills**: Switch between **All**, **My Saved**, **Flora**, **Fauna**, and **Avian** to focus on specific taxonomic classes.
+4. **Real-time Search**: Search by common name (e.g., "Orchid"), scientific name (e.g., *Platanthera*), or habitat biome.
+
+<div class="visual-figure">
+  <div class="app-frame" style="max-width: 520px;">
+    <img src="images/monarch_bee_clean.png" alt="Monarch Butterfly and Rusty Patched Bumblebee Reference Cards" />
+  </div>
+  <p class="figure-caption">Figure 3: Catalog reference cards featuring verified diagnostic photography for the Monarch Butterfly (Danaus plexippus) and Rusty Patched Bumblebee (Bombus affinis).</p>
+</div>
+
+---
+
+### Beat 4: Branching Scientific Dossiers (Flora vs. Fauna Segregation)
+
+To maintain strict scientific integrity, the BioDex platform splits its dossier engine into two mutually exclusive tracks:
+
+```text
+========================================================================================
+                         BRANCHING SPECIMEN DOSSIER LOGIC
+========================================================================================
+       BOTANICAL SPECIMEN (FLORA)                   ZOOLOGICAL SPECIMEN (FAUNA)
+-----------------------------------------   --------------------------------------------
+[X] Kingdom Plantae / Botanical Biology     [X] Kingdom Animalia / Zoological Biology
+[X] Health & Medicinal Phytochemistry       [X] Dietary Triage: Herbivore/Omnivore/Carnivore
+[X] Peer-Reviewed PubMed Article Link       [X] Trophic Feeding Role & Prey Relationships
+[X] Habitat Fragmentation & Climate Zone    [X] Poaching & Human Conflict Drivers
+[X] Seed Preservation & Corridor Actions    [X] Wildlife Corridors & Anti-Poaching Patrols
+[!] Diet Classification is NOT displayed     [!] Medicinal links are NOT displayed
+========================================================================================
 ```
-=================================================================
-                 SPECIMEN DOSSIER BRANCHING LOGIC
-=================================================================
-   IF SPECIMEN = FLORA (PLANT)         IF SPECIMEN = FAUNA (ANIMAL)
-----------------------------------  -----------------------------
- [Botanical Specimen Dossier]        [Zoological Specimen Dossier]
- - Plant Taxonomy & Climate Zone     - Animal Taxonomy & Habitat
- - Health & Medicinal Properties     - Diet: Herbivore/Omnivore/Carnivore
- - Peer-Reviewed PubMed Link         - Feeding Behavior & Prey
- - Extinction Threat Drivers         - Extinction Threat Drivers
- - Preventive Recovery Measures      - Preventive Recovery Measures
- - [Diet is NOT shown]               - [Medicinal link is NOT shown]
-=================================================================
-```
 
-#### Path A: When You Scan Flora (Plants, Trees, Herbs, Fungi)
+#### Track A: Botanical Specimen Dossier (Plants, Wildflowers, Trees, Fungi)
+When scanning botanical specimens such as the Western Prairie Orchid (*Platanthera praeclara*) or Purple Coneflower (*Echinacea purpurea*):
+1. **Phytochemical & Medicinal Evaluation**:
+   - Details clinically documented chemical constituents (e.g., caffeic acids, flavonoids, volatile terpenes).
+   - Explains historical applications by indigenous peoples and modern pharmacological relevance.
+2. **NCBI PubMed Research Article Link**:
+   - Every botanical dossier includes a dedicated link button: **Read Article / Scientific Research**.
+   - Clicking this opens an authentic scientific publication indexed in the United States National Library of Medicine (NCBI PubMed).
+   - Students can cite these papers directly in classroom biology reports.
+3. **Exclusion Rule**: Plants synthesize their own food via photosynthesis; therefore, animal diet categories (Herbivore, Carnivore, Omnivore) are strictly omitted.
 
-When a plant is identified, the dossier switches to the **Botanical Specimen Dossier**:
-
-1. **Taxonomic Hierarchy**: Review Kingdom (*Plantae*), Family, Genus, and Scientific Name.
-2. **Health and Medicinal Properties**:
-   - Reads historical and modern therapeutic uses (e.g., anti-inflammatory, antimicrobial, or antioxidant bio-compounds).
-   - Explains how indigenous communities and modern pharmacology utilize the plant's phytochemicals.
-3. **Scholarly Article Link (NCBI PubMed)**:
-   - Click the interactive button labeled **Read Article / Scientific Research**.
-   - This opens an authentic, peer-reviewed medical and biological research paper directly from the National Center for Biotechnology Information (NCBI PubMed) in a new browser tab.
-   - Use this article to answer classroom research questions about laboratory-tested medical applications.
-4. **Dietary Status Note**: Plants do not have animal diets; therefore, the diet classification card is completely hidden.
-
-#### Path B: When You Scan Fauna (Mammals, Birds, Reptiles, Insects, Fish)
-
-When an animal is identified, the dossier switches to the **Zoological Specimen Dossier**:
-
-1. **Diet Classification Badge**:
-   - The organism is sorted into one of three strict trophic categories:
-     - **Herbivore**: Eats exclusively vegetation, fruits, roots, or seeds (e.g., Asian Elephant, Black Rhinoceros).
-     - **Omnivore**: Consumes both plant matter and other animals (e.g., Sloth Bear, Red Fox).
-     - **Carnivore**: Hunts and preys exclusively on other animals (e.g., Bengal Tiger, Snow Leopard).
-2. **Feeding Behavior & Trophic Role**:
-   - Explains foraging strategies, prey selection, and energy transfer within the food web.
-3. **Medical Status Note**: Animals are not medical flora; therefore, plant medicinal properties and PubMed herbal article links are completely hidden.
+#### Track B: Zoological Specimen Dossier (Mammals, Birds, Reptiles, Insects, Fish)
+When scanning zoological specimens such as the Bengal Tiger (*Panthera tigris*) or Monarch Butterfly (*Danaus plexippus*):
+1. **Diet Triage & Trophic Classification**:
+   - **Herbivore**: Eats exclusively flora, leaves, nectar, or roots (e.g., Monarch Butterfly caterpillar feeding on milkweed).
+   - **Omnivore**: Consumes both vegetation and animal matter (e.g., Sloth Bear, Grey Fox).
+   - **Carnivore**: Hunts other animals and maintains ecosystem equilibrium (e.g., Bengal Tiger preying on chital deer).
+2. **Ecosystem Role & Feeding Ecology**:
+   - Documents prey preferences, foraging radius, and apex regulator functions.
+3. **Exclusion Rule**: Animals do not possess herbal medicinal properties; therefore, medicinal compound descriptions and PubMed herbal links are strictly omitted.
 
 ---
 
-### Step 4: Analyzing Extinction Risks and Preventive Measures
+### Beat 5: Population Viability Analysis (PVA Simulation)
 
-Every organism, whether plant or animal, faces human and environmental pressures. Both dossiers display two dedicated conservation panels:
+The BioDex PVA Simulator is a mathematical forecasting module that projects species population trends over a 20-year demographic horizon (2001 to 2031 and beyond to 2050).
 
-1. **Extinction Risks and Primary Causes**:
-   - Pinpoints the root drivers threatening the species (e.g., deforestation, climate change, agricultural runoff, illegal poaching, or invasive species competition).
-   - Reviews the IUCN Red List status (Least Concern, Vulnerable, Endangered, or Critically Endangered).
-2. **Preventive Measures and Conservation Actions**:
-   - Outlines actionable human interventions to reverse population decline.
-   - Examples: Establishing protected corridors, enforcing anti-poaching satellite monitoring, habitat buffer zones, and community-led seed banks.
+<div class="mockup-pva-card">
+  <div class="pva-header">
+    <span class="pva-title">POPULATION VIABILITY ANALYSIS (PVA) ENGINE</span>
+    <span class="pva-status badge-alert">BASELINE: UNMITIGATED COLLAPSE BY YEAR 2038</span>
+  </div>
+  <div class="pva-levers-container">
+    <div class="lever-row">
+      <span class="lever-name">Habitat Protection & Corridor Reforestation</span>
+      <div class="lever-bar-track"><div class="lever-bar-fill" style="width: 70%;"></div></div>
+      <span class="lever-val">+70%</span>
+    </div>
+    <div class="lever-row">
+      <span class="lever-name">Anti-Poaching Patrols & Law Enforcement</span>
+      <div class="lever-bar-track"><div class="lever-bar-fill" style="width: 85%;"></div></div>
+      <span class="lever-val">+85%</span>
+    </div>
+    <div class="lever-row">
+      <span class="lever-name">Climate Volatility Resilience & Hydrology</span>
+      <div class="lever-bar-track"><div class="lever-bar-fill" style="width: 60%;"></div></div>
+      <span class="lever-val">+60%</span>
+    </div>
+  </div>
+  <div class="pva-forecast-summary">
+    <div class="forecast-box">
+      <span class="forecast-label">Current Census (2026)</span>
+      <span class="forecast-num">28,500</span>
+    </div>
+    <div class="forecast-box">
+      <span class="forecast-label">Unmitigated Horizon</span>
+      <span class="forecast-num alert">Year 2038</span>
+    </div>
+    <div class="forecast-box">
+      <span class="forecast-label">Mitigated Rebound Goal</span>
+      <span class="forecast-num success">45,000</span>
+    </div>
+  </div>
+</div>
 
----
-
-### Step 5: Recording into the BioDex Field Journal
-
-1. After reviewing the dossier, close the modal or click **Register Specimen**.
-2. Complete the field observation form:
-   - Verify the location coordinates or site name (e.g., "School Science Garden - Sector B").
-   - Select the habitat condition (Pristine, Moderate Disturbance, or Degraded).
-   - Add your field notes and observations.
-3. Click **Save to BioDex**.
-4. The specimen is permanently recorded in your student profile and will now appear on the interactive **Habitat Map** and in your **BioDex Catalog**.
-
----
-
-## 4. Student Dossier Comparison Matrix
-
-| Feature / Field | Botanical Dossier (Flora) | Zoological Dossier (Fauna) | Purpose for Student Researchers |
-| :--- | :--- | :--- | :--- |
-| **Dossier Header** | Botanical Specimen Dossier | Zoological Specimen Dossier | Confirms the biological kingdom of the specimen. |
-| **Scientific Name** | Binomial (e.g., *Aloe vera*) | Binomial (e.g., *Panthera tigris*) | Standard global scientific nomenclature. |
-| **Diet Classification** | Not Applicable (Hidden) | Herbivore, Omnivore, or Carnivore | Teaches trophic levels and food chains. |
-| **Dietary Description** | Not Applicable (Hidden) | Detailed feeding behavior | Explains energy flow in ecosystems. |
-| **Medicinal Properties** | Active phytochemicals & therapeutic uses | Not Applicable (Hidden) | Connects botany to human health and pharmacology. |
-| **Scholarly Article Link**| PubMed research paper link | Not Applicable (Hidden) | Direct portal to real scientific literature. |
-| **Extinction Causes** | Specific plant threat drivers | Specific animal threat drivers | Explains ecological vulnerabilities. |
-| **Preventive Measures** | Targeted botanical conservation | Targeted wildlife conservation | Teaches practical environmental stewardship. |
-
----
-
-## 5. Classroom Field Exercises
-
-Here are three suggested activities for students using the BioDex:
-
-1. **The Ecosystem Food Web Challenge**:
-   - Scan 2 Herbivores, 1 Carnivore, and 2 Plants in your survey area.
-   - Draw a diagram linking them together in a food chain based on their diet descriptions.
-
-2. **The Ethnobotany Investigation**:
-   - Scan 3 different local plants or trees.
-   - Click the PubMed research article link for each one.
-   - Note down one active chemical compound discovered in each plant and its medical use.
-
-3. **The Conservation Action Plan**:
-   - Find an organism classified as Vulnerable, Endangered, or Critically Endangered.
-   - Read the Extinction Reasons and Preventive Measures sections.
-   - Write a two-paragraph action plan explaining what your school community can do to protect this species' habitat.
+#### Student Simulation Steps
+1. Navigate to the **Predict (PVA)** tab.
+2. Select your specimen from the survey history dropdown.
+3. Review the 20-Year Baseline Census table (2001, 2007, 2013, 2018, 2019, 2026).
+4. Adjust the three conservation levers to test management hypotheses:
+   - How does a 50 percent increase in anti-poaching patrol intensity push back the extinction horizon?
+   - What happens to reproductive recruitment when habitat fragmentation is reduced?
+5. Observe the calculated rebound trajectory curve updating dynamically.
 
 ---
 
-## 6. Troubleshooting Common Issues
+### Beat 6: People's Biodiversity Register (PBR) & Audit Log
 
-- **Question**: The scanner says "Specimen Unidentified or Low Confidence."
-  - **Remedy**: Move closer to the subject, steady your hands, ensure there is ample light, and retake the photo without motion blur.
-- **Question**: Why does my pet dog scan show no medicinal article?
-  - **Answer**: The system accurately identifies dogs as Fauna (*Canis lupus familiaris*). As an animal, it receives a Diet classification (Carnivore/Omnivore), while medicinal articles are reserved strictly for Flora.
-- **Question**: Can I test the application without outdoor access?
-  - **Answer**: Yes. You can upload reference photographs from reputable educational archives (e.g., WWF, National Geographic, or Wikipedia) to test the scanner from your classroom desk.
+The final phase of field observation is cataloging your survey into the permanent scientific ledger:
+
+1. **People's Biodiversity Register (PBR)**:
+   - Located under the third segment tab of BioDex: **My Observations (PBR)**.
+   - Stores the unique observation identifier (`REC-2026-XXXX`), GPS sector coordinates, census count, and observation timestamp.
+2. **Audit & Deletion Controls**:
+   - Students and teachers can remove test or redundant observations by clicking the delete icon.
+   - Deleting a survey record automatically clears it from the local browser database and advances the active report inspector to the next record.
+3. **Smart Report Export**:
+   - Navigate to the **Reports** tab to inspect comprehensive field summaries formatted according to national biodiversity registry standards.
+
+---
+
+## 4. Student Field Naturalist Honor Code
+
+1. **Do No Harm**: Observe living creatures in their natural state without disturbing nests, crushing root systems, or harassing wildlife.
+2. **Scientific Precision**: Always verify diagnostic traits before submitting a classification.
+3. **Data Integrity**: Never invent census counts or falsify GPS coordinates. True science depends on honest, reproducible field data.
