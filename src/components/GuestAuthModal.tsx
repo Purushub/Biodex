@@ -3,21 +3,16 @@ import { StudentSession, GradeLevel } from '../types';
 import { soundFX } from '../utils/audio';
 import {
   ShieldCheck,
-  School,
-  Sparkles,
   X,
-  LogIn,
   LogOut,
   CheckCircle2,
   User,
-  ChevronDown,
-  ChevronUp,
   KeyRound,
   Eye,
   EyeOff,
   AlertTriangle,
-  Lock,
-  Unlock,
+  ArrowRight,
+  Compass,
 } from 'lucide-react';
 
 interface GuestAuthModalProps {
@@ -33,12 +28,12 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
   session,
   onSaveSession,
 }) => {
-  const [authTab, setAuthTab] = useState<'student' | 'manager'>('student');
-  const [classCode, setClassCode] = useState(session.classCode);
-  const [gradeLevel, setGradeLevel] = useState<GradeLevel>(session.gradeLevel);
-  const [guestId, setGuestId] = useState(session.guestId);
-  const [sectorCoord, setSectorCoord] = useState(session.sectorCoord);
-  const [showCloudAuth, setShowCloudAuth] = useState(false);
+  const [authTab, setAuthTab] = useState<'guest' | 'google' | 'manager'>('guest');
+  const [classCode, setClassCode] = useState(session.classCode || 'BIO-EXPEDITION-2026');
+  const [gradeLevel] = useState<GradeLevel>(session.gradeLevel || 'Grade 6');
+  const [guestId, setGuestId] = useState(session.guestId || 'BIO-7842');
+  const [sectorCoord] = useState(session.sectorCoord || 'SECTOR-7G');
+  const [showCallsignConfig, setShowCallsignConfig] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -50,16 +45,43 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
   const [managerSuccess, setManagerSuccess] = useState(false);
 
   useEffect(() => {
-    setClassCode(session.classCode);
-    setGradeLevel(session.gradeLevel);
-    setGuestId(session.guestId);
-    setSectorCoord(session.sectorCoord);
+    setClassCode(session.classCode || 'BIO-EXPEDITION-2026');
+    setGuestId(session.guestId || 'BIO-7842');
     if (session.isManager) {
       setAuthTab('manager');
+    } else if (session.authProvider === 'google' && session.userEmail) {
+      setAuthTab('google');
     }
   }, [session]);
 
   if (!isOpen) return null;
+
+  const handleDismiss = () => {
+    soundFX.playCancel();
+    try {
+      sessionStorage.setItem('biodex_auth_completed', 'true');
+    } catch {}
+    onClose();
+  };
+
+  const handleGuestEntry = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    soundFX.playConfirm();
+    try {
+      sessionStorage.setItem('biodex_auth_completed', 'true');
+    } catch {}
+    const updated: StudentSession = {
+      ...session,
+      classCode: classCode.trim() || 'BIO-EXPEDITION-2026',
+      gradeLevel,
+      guestId: guestId.trim() || 'BIO-7842',
+      sectorCoord,
+      authProvider: 'guest',
+      isManager: false,
+    };
+    onSaveSession(updated);
+    onClose();
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -67,7 +89,6 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
       setAuthError(null);
       soundFX.playConfirm();
 
-      // Dynamically import Firebase to avoid loading it unnecessarily
       const { auth, googleProvider, signInWithPopup } = await import('../lib/firebase');
       const { syncUserProfile } = await import('../lib/firestoreService');
 
@@ -83,13 +104,17 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
         guestId: user.displayName || user.email?.split('@')[0] || session.guestId,
       };
 
+      try {
+        sessionStorage.setItem('biodex_auth_completed', 'true');
+      } catch {}
+
       await syncUserProfile(updatedSession);
       onSaveSession(updatedSession);
       setIsSigningIn(false);
+      onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Google sign-in error';
       console.warn('Google Sign-in note:', err);
-      setAuthError('Cloud sync unavailable on localhost. Your data is saved locally.');
+      setAuthError('Cloud authentication unavailable on localhost. You can continue as a Guest Naturalist with full local storage.');
       setIsSigningIn(false);
     }
   };
@@ -105,7 +130,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
         userEmail: undefined,
         userDisplayName: undefined,
         authProvider: 'guest',
-        guestId: 'GUEST-G6-042',
+        guestId: 'BIO-7842',
       };
       onSaveSession(updatedSession);
     } catch (err) {
@@ -128,7 +153,10 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
     if (isEmailValid && cleanPass === '12345') {
       soundFX.playConfirm();
       setManagerSuccess(true);
-      try { sessionStorage.setItem('biodex_manager_auth', 'true'); } catch {}
+      try {
+        sessionStorage.setItem('biodex_manager_auth', 'true');
+        sessionStorage.setItem('biodex_auth_completed', 'true');
+      } catch {}
       const updated: StudentSession = {
         ...session,
         userEmail: 'pm@skillizee.io',
@@ -140,7 +168,7 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
       setTimeout(() => {
         onSaveSession(updated);
         onClose();
-      }, 500);
+      }, 400);
       return;
     }
 
@@ -150,7 +178,9 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
 
   const handleManagerLogout = () => {
     soundFX.playCancel();
-    try { sessionStorage.removeItem('biodex_manager_auth'); } catch {}
+    try {
+      sessionStorage.removeItem('biodex_manager_auth');
+    } catch {}
     const updated: StudentSession = {
       ...session,
       userEmail: undefined,
@@ -160,25 +190,12 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
       guestId: 'BIO-7842',
     };
     onSaveSession(updated);
-    setAuthTab('student');
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    soundFX.playConfirm();
-    onSaveSession({
-      ...session,
-      classCode,
-      gradeLevel,
-      guestId,
-      sectorCoord,
-    });
-    onClose();
+    setAuthTab('guest');
   };
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-900/65 backdrop-blur-sm animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
     >
@@ -186,46 +203,58 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-              authTab === 'manager'
-                ? 'bg-amber-50 border border-amber-200 text-amber-600'
-                : 'bg-emerald-50 border border-emerald-200 text-emerald-600'
-            }`}>
-              {authTab === 'manager' ? <KeyRound className="w-5 h-5 text-amber-600" /> : <School className="w-5 h-5 text-emerald-600" />}
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shadow-xs">
+              <Compass className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
               <h2 className="font-bold text-slate-900 text-base tracking-tight leading-tight">
-                {authTab === 'manager' ? 'Manager Verification' : 'Student Profile'}
+                BioDex Access Portal
               </h2>
               <span className="font-mono text-[11px] text-slate-400">
-                {authTab === 'manager' ? 'Entry Deletion Privileges' : 'Field Session Config'}
+                WWF Biodiversity Field Station
               </span>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => {
-              soundFX.playCancel();
-              onClose();
-            }}
+            onClick={handleDismiss}
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Dismiss and Enter"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Role Tab Selector */}
-        <div className="flex rounded-xl bg-slate-100 p-1 my-3">
+        {/* Access Method Tabs */}
+        <div className="flex rounded-xl bg-slate-100 p-1 my-4">
           <button
             type="button"
-            onClick={() => { setAuthTab('student'); soundFX.playScanBeep(); }}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              authTab === 'student'
+            onClick={() => { setAuthTab('guest'); soundFX.playScanBeep(); }}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              authTab === 'guest'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Naturalist Profile
+            <User className="w-3.5 h-3.5 text-emerald-600" />
+            Guest Login
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAuthTab('google'); soundFX.playScanBeep(); }}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              authTab === 'google'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+            </svg>
+            Google
           </button>
           <button
             type="button"
@@ -237,11 +266,174 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
             }`}
           >
             <KeyRound className="w-3.5 h-3.5" />
-            Manager Access
+            Manager
           </button>
         </div>
 
-        {authTab === 'manager' ? (
+        {/* TAB 1: GUEST LOGIN (Primary & Recommended) */}
+        {authTab === 'guest' && (
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-1.5">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Instant Guest Access (No Signup Required)</span>
+              </div>
+              <p className="text-[11px] text-emerald-800/85 leading-relaxed pl-6">
+                Explore the catalog, scan species, simulate extinction forecasts, and save field observations directly to your local browser storage.
+              </p>
+            </div>
+
+            {/* Prominent Quick Entry Action */}
+            <button
+              type="button"
+              onClick={() => handleGuestEntry()}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Continue as Guest Naturalist</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            {/* Optional Call Sign & Class Code Accordion */}
+            <div className="border border-slate-100 rounded-2xl p-3 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setShowCallsignConfig(!showCallsignConfig)}
+                className="w-full flex items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                <span>Customize Student Call Sign / Class</span>
+                <span className="text-[11px] text-emerald-600 font-bold">
+                  {showCallsignConfig ? 'Collapse' : 'Edit'}
+                </span>
+              </button>
+
+              {showCallsignConfig && (
+                <form onSubmit={handleGuestEntry} className="mt-3 space-y-2.5 pt-2 border-t border-slate-200/60">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                      Student ID / Call Sign
+                    </label>
+                    <input
+                      type="text"
+                      value={guestId}
+                      onChange={(e) => setGuestId(e.target.value)}
+                      placeholder="e.g. BIO-7842"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                      Classroom Expedition Code
+                    </label>
+                    <input
+                      type="text"
+                      value={classCode}
+                      onChange={(e) => setClassCode(e.target.value)}
+                      placeholder="e.g. BIO-EXPEDITION-2026"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 uppercase focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer"
+                  >
+                    Save & Enter
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: GOOGLE SIGN IN */}
+        {authTab === 'google' && (
+          <div className="space-y-4">
+            {session.authProvider === 'google' && session.userEmail ? (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center font-bold text-emerald-800 text-sm">
+                    {(session.userDisplayName || session.userEmail)[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 truncate">
+                      {session.userDisplayName || 'Student Naturalist'}
+                    </p>
+                    <p className="text-[11px] font-mono text-slate-500 truncate">
+                      {session.userEmail}
+                    </p>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-mono font-bold">
+                      Cloud Sync Active
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDismiss}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Continue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignOut}
+                    className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                  <p className="text-xs font-bold text-slate-800">
+                    Cloud Account Sync
+                  </p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Sign in with your Google account to synchronize your observations across tablets and school workstations.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isSigningIn}
+                  className="w-full bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-800 border border-slate-300 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>{isSigningIn ? 'Connecting...' : 'Sign in with Google'}</span>
+                </button>
+
+                {authError && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <div>
+                      <p className="font-semibold">{authError}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleGuestEntry()}
+                        className="mt-1.5 text-emerald-700 underline font-bold"
+                      >
+                        Click here to continue as Guest
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: MANAGER LOGIN */}
+        {authTab === 'manager' && (
           <div className="space-y-3">
             {session.isManager ? (
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
@@ -252,22 +444,31 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
                     <p className="text-[11px] text-emerald-700">Project Manager Entry Deletion Enabled</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleManagerLogout}
-                  className="w-full py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                >
-                  Switch to Guest / Student Mode
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDismiss}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Enter App
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleManagerLogout}
+                    className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Switch to Guest
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleManagerLogin} className="space-y-3">
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Log in with authorized manager credentials to manage and delete entries from the register.
+                  Log in with authorized manager credentials to manage and audit entries.
                 </p>
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Manager ID / Email
+                    Manager Email
                   </label>
                   <input
                     type="text"
@@ -326,117 +527,6 @@ export const GuestAuthModal: React.FC<GuestAuthModalProps> = ({
               </form>
             )}
           </div>
-        ) : (
-          <>
-            {/* Guest Mode Active Badge */}
-            <div className="my-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-emerald-800">Guest Mode Active</p>
-                <p className="text-[11px] text-emerald-600/80">All data saved locally on this device.</p>
-              </div>
-              <span className="bg-emerald-100 text-emerald-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0">
-                Offline OK
-              </span>
-            </div>
-
-        {/* Profile Settings Form */}
-        <form onSubmit={handleSave} className="space-y-3">
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Classroom Code
-            </label>
-            <input
-              type="text"
-              value={classCode}
-              onChange={(e) => setClassCode(e.target.value)}
-              placeholder="e.g. BIO-EXPEDITION-2026"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 uppercase focus:border-emerald-500 focus:bg-white focus:outline-none"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Student ID / Call Sign
-            </label>
-            <input
-              type="text"
-              value={guestId}
-              onChange={(e) => setGuestId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-700 focus:border-emerald-500 focus:bg-white focus:outline-none"
-              required
-            />
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-xs transition-all active:scale-[0.99]"
-            >
-              Save Profile
-            </button>
-          </div>
-        </form>
-
-        {/* Collapsible Cloud Auth — hidden by default to avoid confusion */}
-        <div className="mt-4 border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            onClick={() => setShowCloudAuth(!showCloudAuth)}
-            className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <span>Cloud Sync (Optional)</span>
-            {showCloudAuth ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-
-          {showCloudAuth && (
-            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 animate-in fade-in slide-in-from-top-1 duration-200">
-              {session.authProvider === 'google' && session.userEmail ? (
-                <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
-                  <div className="min-w-0 pr-2">
-                    <p className="text-xs font-bold text-slate-900 truncate">{session.userDisplayName || 'Student User'}</p>
-                    <p className="text-[11px] font-mono text-slate-500 truncate">{session.userEmail}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignOut}
-                    className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 shrink-0 transition-colors"
-                  >
-                    <LogOut className="w-3.5 h-3.5" /> Sign Out
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs text-slate-500 mb-2 leading-relaxed">
-                    Sign in with Google to sync surveys across devices. Requires Firebase authorized domain.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={isSigningIn}
-                    className="w-full bg-white hover:bg-slate-100 text-slate-900 border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99]"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                    </svg>
-                    {isSigningIn ? 'Connecting...' : 'Sign in with Google'}
-                  </button>
-                </div>
-              )}
-
-              {authError && (
-                <p className="mt-2 text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                  {authError}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-          </>
         )}
       </div>
     </div>

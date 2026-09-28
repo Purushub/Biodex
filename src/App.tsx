@@ -21,6 +21,7 @@ import {
 import {
   getFullSpeciesCatalog,
   saveCustomSpecies,
+  deleteCustomSpecies,
   isUnidentifiedSpeciesName,
 } from './utils/customSpeciesDB';
 import { INITIAL_HABITATS } from './data/habitats';
@@ -55,7 +56,7 @@ const SURVEY_RECORDS_KEY = 'biodex_survey_records';
 function getDeletedRecordIds(): Set<string> {
   try {
     const raw = localStorage.getItem(DELETED_RECORDS_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    return raw ? new Set(JSON.parse(raw).map((k: string) => String(k).trim().toLowerCase())) : new Set();
   } catch {
     return new Set();
   }
@@ -63,8 +64,10 @@ function getDeletedRecordIds(): Set<string> {
 
 function saveDeletedRecordId(id: string) {
   try {
+    const clean = String(id || '').trim().toLowerCase();
+    if (!clean) return;
     const set = getDeletedRecordIds();
-    set.add(id);
+    set.add(clean);
     localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(Array.from(set)));
   } catch {}
 }
@@ -73,13 +76,17 @@ function getStoredSurveyRecords(): SurveyRecord[] {
   const deleted = getDeletedRecordIds();
   try {
     const raw = localStorage.getItem(SURVEY_RECORDS_KEY);
-    if (raw) {
+    if (raw !== null) {
       const records: SurveyRecord[] = JSON.parse(raw);
-      const filtered = records.filter((r) => !deleted.has(r.recordId));
-      if (filtered.length > 0) return filtered;
+      if (Array.isArray(records)) {
+        return records.filter((r) => {
+          const id = String(r.recordId || (r as any).Record_ID || '').trim().toLowerCase();
+          return !deleted.has(id);
+        });
+      }
     }
   } catch {}
-  if (deleted.has(INITIAL_DEFAULT_SURVEY_RECORD.recordId)) {
+  if (deleted.has(INITIAL_DEFAULT_SURVEY_RECORD.recordId.toLowerCase())) {
     return [];
   }
   return [INITIAL_DEFAULT_SURVEY_RECORD];
@@ -115,8 +122,14 @@ export default function App() {
     authProvider: 'guest',
   });
 
-  // Modal open states
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  // Modal open states - Login/Signup screen comes first with option of Guest Login
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('biodex_auth_completed') !== 'true';
+    } catch {
+      return true;
+    }
+  });
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
   const [isInitialAfterSplash, setIsInitialAfterSplash] = useState(false);
@@ -375,19 +388,12 @@ export default function App() {
 
   // Log to Field PBR Protocol
   const handleLogFieldEntry = async (customRecord?: SurveyRecord) => {
-    // User must be logged in to save species records to Firestore
-    const isLoggedIn = session.authProvider === 'google' && Boolean(session.firebaseUid);
-    if (!isLoggedIn) {
-      soundFX.playCancel();
-      showToast('Authentication Required: Please sign in with Google to save species records.');
-      setIsAuthModalOpen(true);
-      return;
-    }
-
     soundFX.playConfirm();
     const newRecordId = customRecord?.recordId || `REC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const isCloudSync = Boolean(session.firebaseUid && session.authProvider === 'google');
+
     const newRecord: SurveyRecord = customRecord
-      ? { ...customRecord, recordId: newRecordId, storedInFirebase: true }
+      ? { ...customRecord, recordId: newRecordId, storedInFirebase: isCloudSync }
       : {
           recordId: newRecordId,
           studentGuestId: session.guestId,
@@ -418,11 +424,18 @@ export default function App() {
           aiProjectedExtinctionYear: `Year ${currentSpecies.vitalityStats.extinctionHorizonYear} (if unmitigated)`,
           smartReportUrl: `https://app.wwf.org/reports/${newRecordId}.pdf`,
           conservationLevers: levers,
-          storedInFirebase: true,
+          storedInFirebase: isCloudSync,
         };
 
-    // Save to Firestore
-    await saveSurveyRecordToFirestore(newRecord, session);
+    // Save to Firestore if cloud auth is connected
+    if (isCloudSync) {
+      try {
+        await saveSurveyRecordToFirestore(newRecord, session);
+      } catch (e) {
+        console.warn('Cloud sync deferred, saved locally:', e);
+      }
+    }
+
     setSurveyRecords((prev) => {
       const exists = prev.some((r) => r.recordId === newRecord.recordId);
       if (exists) {
@@ -431,16 +444,32 @@ export default function App() {
       return [newRecord, ...prev];
     });
 
+    // Ensure the saved species is registered in catalog and persisted
+    const savedSpecies: SpeciesData = {
+      ...currentSpecies,
+      id: newRecord.speciesId || currentSpecies.id,
+      commonName: newRecord.speciesCommon || currentSpecies.commonName,
+      scientificName: newRecord.speciesScientific || currentSpecies.scientificName,
+      imageUrl: newRecord.imageUrl || currentSpecies.imageUrl,
+      habitat: newRecord.habitatType || currentSpecies.habitat,
+      isUserSaved: true,
+      savedAt: newRecord.timestamp,
+    };
+    if (!isUnidentifiedSpeciesName(savedSpecies.commonName)) {
+      saveCustomSpecies(savedSpecies);
+      setCatalog((prev) => {
+        const map = new Map<string, SpeciesData>();
+        map.set(savedSpecies.id, savedSpecies);
+        prev.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, s);
+        });
+        return Array.from(map.values());
+      });
+    }
+
     // Directly bind this submitted survey data to the dynamic PVA extinction simulator
     setActiveSimulationRecord(newRecord);
-    const matched = catalog.find(
-      (s) =>
-        s.id === newRecord.speciesId ||
-        s.commonName.toLowerCase() === (newRecord.Species_Name_Common || newRecord.speciesCommon || '').toLowerCase()
-    );
-    if (matched) {
-      setCurrentSpecies(matched);
-    }
+    setCurrentSpecies(savedSpecies);
 
     showToast(`Stored in database & PBR Register: ${newRecordId}`);
   };
@@ -477,22 +506,58 @@ export default function App() {
   const handleDeleteSurveyRecord = async (recordId: string) => {
     soundFX.playCancel();
     saveDeletedRecordId(recordId);
+
+    const targetRecord = surveyRecords.find(
+      (r) => r.recordId === recordId || (r as any).Record_ID === recordId
+    );
+
     setSurveyRecords((prev) => {
-      const next = prev.filter((r) => r.recordId !== recordId);
+      const next = prev.filter(
+        (r) => r.recordId !== recordId && (r as any).Record_ID !== recordId
+      );
       try {
         localStorage.setItem(SURVEY_RECORDS_KEY, JSON.stringify(next));
       } catch {}
       return next;
     });
+
     if (activeSimulationRecord?.recordId === recordId) {
       setActiveSimulationRecord(null);
     }
+
+    if (targetRecord) {
+      if (targetRecord.speciesId) deleteCustomSpecies(targetRecord.speciesId);
+      if (targetRecord.speciesCommon) deleteCustomSpecies(targetRecord.speciesCommon);
+      setCatalog((prev) =>
+        prev.filter(
+          (s) =>
+            s.id !== targetRecord.speciesId &&
+            s.commonName.toLowerCase() !== (targetRecord.speciesCommon || '').toLowerCase()
+        )
+      );
+    }
+
     showToast(`Removed observation ${recordId} from Biodiversity Register.`);
     try {
       await deleteSurveyRecordFromFirestore(recordId);
     } catch (err) {
       console.warn('Could not delete from Firestore:', err);
     }
+  };
+
+  // Delete custom species directly from BioDex catalog
+  const handleDeleteCustomSpecies = (speciesId: string) => {
+    soundFX.playCancel();
+    deleteCustomSpecies(speciesId);
+    setCatalog((prev) => prev.filter((s) => s.id !== speciesId));
+    setSurveyRecords((prev) => {
+      const next = prev.filter((r) => r.speciesId !== speciesId);
+      try {
+        localStorage.setItem(SURVEY_RECORDS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    showToast('Removed custom species from BioDex.');
   };
 
   const themeCfg = getThemeConfig(theme);
@@ -603,6 +668,7 @@ export default function App() {
             onSelectRecordForSimulation={(rec) => {
               setActiveSimulationRecord(rec);
             }}
+            onDeleteCustomSpecies={handleDeleteCustomSpecies}
           />
         )}
 

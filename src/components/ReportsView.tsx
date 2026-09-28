@@ -150,7 +150,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setDeletingRecordId(recId);
   };
 
-  const activeRecord = allRecords.find((r) => r.recordId === selectedRecordId) || initialRecord || allRecords[0] || null;
+  const activeRecord = allRecords.find((r) => r.recordId === selectedRecordId) || allRecords[0] || null;
   const currentRecord = activeRecord;
 
   const handleDownloadCSV = () => {
@@ -527,6 +527,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             onClick={() => {
                               onDeleteRecord(rec.recordId);
                               setDeletingRecordId(null);
+                              if (selectedRecordId === rec.recordId) {
+                                const remaining = allRecords.filter((r) => r.recordId !== rec.recordId);
+                                setSelectedRecordId(remaining[0]?.recordId || '');
+                              }
                             }}
                             className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-0.5 rounded active:scale-95 transition-all cursor-pointer"
                           >

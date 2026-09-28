@@ -30,15 +30,34 @@ export function getCustomSpeciesCatalog(): SpeciesData[] {
   }
 }
 
-// Get the full unified catalog: built-in initial catalog + user-discovered species
+// Get the full unified catalog: user-discovered species first, then initial catalog
 export function getFullSpeciesCatalog(): SpeciesData[] {
   const custom = getCustomSpeciesCatalog();
-  if (custom.length === 0) return INITIAL_SPECIES_CATALOG;
-
   const map = new Map<string, SpeciesData>();
-  INITIAL_SPECIES_CATALOG.forEach((s) => map.set(s.id, s));
-  custom.forEach((s) => map.set(s.id, s)); // custom overwrites or adds
+  // Custom user-discovered species FIRST so students see their saved species immediately
+  custom.forEach((s) => map.set(s.id, { ...s, isCustomDiscovery: true, isUserSaved: true }));
+  INITIAL_SPECIES_CATALOG.forEach((s) => {
+    if (!map.has(s.id)) {
+      map.set(s.id, s);
+    }
+  });
   return Array.from(map.values());
+}
+
+// Delete a custom species from localStorage
+export function deleteCustomSpecies(idOrName: string): void {
+  try {
+    const clean = (idOrName || '').toLowerCase().trim();
+    if (!clean) return;
+    const current = getCustomSpeciesCatalog();
+    const updated = current.filter(
+      (s) => s.id.toLowerCase() !== clean && s.commonName.toLowerCase() !== clean
+    );
+    localStorage.setItem(CUSTOM_SPECIES_KEY, JSON.stringify(updated));
+    console.log(`[CustomSpeciesDB] Deleted custom species "${idOrName}".`);
+  } catch (err) {
+    console.warn('[CustomSpeciesDB] Error deleting custom species:', err);
+  }
 }
 
 // Save or update a custom species in localStorage

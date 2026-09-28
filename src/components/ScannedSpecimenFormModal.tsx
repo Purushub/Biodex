@@ -288,74 +288,84 @@ export const ScannedSpecimenFormModal: React.FC<ScannedSpecimenFormModalProps> =
       const customId = `custom-spec-${Date.now()}`;
       const finalSpeciesId = isCustomDiscovery && trimmedCustomName.length > 0 ? customId : (species?.id || baseSpecies.id);
 
-      // If student input a custom name, save to the database so it will be matched next time!
-      if (trimmedCustomName.length > 0) {
-        const customSpeciesData: SpeciesData = {
-          id: customId,
-          catalogNumber: `CUST-${Math.floor(100 + Math.random() * 900)}`,
-          slotNumber: `#CUST-${Math.floor(100 + Math.random() * 900)}`,
-          level: 1,
-          category: category,
-          subType: 'Custom Discovery',
-          commonName: finalCommon,
-          scientificName: finalScientific,
-          genderOrReproduction: category === 'Fauna' ? 'DIOECIOUS' : 'HERMAPHRODITIC',
-          imageUrl: imageUrl,
-          visionMatchConfidence: visionConfidence,
-          biodiversityRank: 5,
-          biodiversityScore: visionConfidence,
-          taxonomy: {
-            kingdom: category === 'Fauna' ? 'ANIMALIA' : 'PLANTAE',
-            order: 'CUSTOM',
-            family: 'Field Discovery',
-            genusSpecies: finalScientific.toUpperCase(),
-          },
-          iucnStatus: 'Least Concern',
-          iucnCriteria: 'CRITERIA A1',
-          habitat: habitatType || 'Field Observation',
-          historicalPop2001: 50000,
-          historicalPop2007: 45000,
-          historicalPop2012: 40000,
-          historicalPop2013: 38000,
-          historicalPop2019: 35000,
-          historicalPop2025: 30000,
-          currentPop2026: 30000,
-          predictedPop2031: 28000,
-          unmitigatedCollapseYear: 2045,
-          collapseFloor: 10000,
-          reboundGoal: 50000,
-          neuralConfidence: visionConfidence,
-          vitalityStats: {
-            populationHealthValue: '30,000 INDIV',
-            populationHealthPercent: 65,
-            populationHealthStatus: 'STABLE',
-            habitatIntegrityPercent: 70,
-            habitatIntegrityStatus: '70% INTACT',
-            pollinatorDensityPercent: 50,
-            pollinatorDensityStatus: '50% ACTIVE',
-            climateResiliencePercent: 75,
-            climateResilienceStatus: '75% STABLE',
-            extinctionModelRiskPercent: 15.0,
-            extinctionHorizonYear: 2050,
-          },
-          limitingFactors: {
-            habitatFragmentation: 20,
-            pollinatorDensity: 40,
-            climateVolatility: 30,
-          },
-          biologistMemo: {
-            entryRef: `BIO-${recordId}`,
-            reserveLocation: habitatType || 'Field Observation',
-            timeLogged: timestamp,
-            details: `Cataloged by naturalist ${studentGuestId}. New species registered to database.`,
-          },
-          curriculumDiscussion: `Field observation of ${finalCommon} recorded by naturalist ${studentGuestId}.`,
-          tags: [category, 'Custom Discovery', ...(detectedKeywords || [])],
-        };
+      // Always register and persist the saved species so it shows in BioDex catalog!
+      const savedSpeciesData: SpeciesData = {
+        ...(species || baseSpecies),
+        id: finalSpeciesId,
+        catalogNumber: (species as any)?.catalogNumber || `OBS-${Math.floor(100 + Math.random() * 900)}`,
+        slotNumber: (species as any)?.slotNumber || `#OBS-${Math.floor(100 + Math.random() * 900)}`,
+        level: (species as any)?.level || 1,
+        category: category,
+        subType: trimmedCustomName.length > 0 ? 'Custom Discovery' : (species?.subType || 'Field Observation'),
+        commonName: finalCommon,
+        scientificName: finalScientific,
+        genderOrReproduction: category === 'Fauna' ? 'DIOECIOUS' : 'HERMAPHRODITIC',
+        imageUrl: imageUrl || species?.imageUrl || baseSpecies.imageUrl,
+        visionMatchConfidence: visionConfidence,
+        biodiversityRank: species?.biodiversityRank || 5,
+        biodiversityScore: species?.biodiversityScore || visionConfidence,
+        taxonomy: species?.taxonomy || {
+          kingdom: category === 'Fauna' ? 'ANIMALIA' : 'PLANTAE',
+          order: 'OBSERVED',
+          family: 'Field Discovery',
+          genusSpecies: finalScientific.toUpperCase(),
+        },
+        iucnStatus: finalStatus,
+        iucnCriteria: species?.iucnCriteria || 'CRITERIA A1',
+        habitat: habitatType || species?.habitat || 'Field Observation',
+        historicalPop2001: Number(hist2001) || 50000,
+        historicalPop2007: Number(hist2007) || 45000,
+        historicalPop2012: 40000,
+        historicalPop2013: Number(hist2013) || 38000,
+        historicalPop2019: Number(hist2019) || 35000,
+        historicalPop2025: Number(hist2025) || 30000,
+        currentPop2026: Number(hist2025) || 30000,
+        predictedPop2031: Number(pred2031) || 28000,
+        unmitigatedCollapseYear: 2045,
+        collapseFloor: 10000,
+        reboundGoal: 50000,
+        neuralConfidence: visionConfidence,
+        vitalityStats: species?.vitalityStats || {
+          populationHealthValue: `${observedCount} Observed`,
+          populationHealthPercent: 65,
+          populationHealthStatus: 'STABLE',
+          habitatIntegrityPercent: 70,
+          habitatIntegrityStatus: '70% INTACT',
+          pollinatorDensityPercent: 50,
+          pollinatorDensityStatus: '50% ACTIVE',
+          climateResiliencePercent: 75,
+          climateResilienceStatus: '75% STABLE',
+          extinctionModelRiskPercent: Number(aiRiskPercentage) || 15.0,
+          extinctionHorizonYear: 2050,
+        },
+        limitingFactors: species?.limitingFactors || {
+          habitatFragmentation: 20,
+          pollinatorDensity: 40,
+          climateVolatility: 30,
+        },
+        biologistMemo: {
+          entryRef: `BIO-${recordId}`,
+          reserveLocation: habitatType || 'Field Observation',
+          timeLogged: timestamp,
+          details: `Cataloged by naturalist ${studentGuestId}. Observed in ${habitatType}.`,
+        },
+        curriculumDiscussion: `Field observation of ${finalCommon} recorded by naturalist ${studentGuestId}.`,
+        isUserSaved: true,
+        isCustomDiscovery: isCustomDiscovery || trimmedCustomName.length > 0,
+        savedAt: timestamp,
+        tags: Array.from(new Set([
+          category,
+          'Saved Observation',
+          ...(isCustomDiscovery || trimmedCustomName.length > 0 ? ['Custom Discovery'] : []),
+          ...(detectedKeywords || []),
+          ...(species?.tags || []),
+        ])),
+      };
 
-        saveCustomSpecies(customSpeciesData, detectedKeywords || []);
+      if (!isUnidentifiedSpeciesName(finalCommon)) {
+        saveCustomSpecies(savedSpeciesData, detectedKeywords || []);
         if (onRegisterCustomSpecies) {
-          onRegisterCustomSpecies(customSpeciesData);
+          onRegisterCustomSpecies(savedSpeciesData);
         }
       }
 

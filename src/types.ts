@@ -120,6 +120,9 @@ export interface SpeciesData {
   predominantRegions?: string[];
   interestingFacts?: string[];
   tags?: string[];
+  isCustomDiscovery?: boolean;
+  isUserSaved?: boolean;
+  savedAt?: string;
   habitat: string;
   historicalPop2001: number;
   historicalPop2007: number;

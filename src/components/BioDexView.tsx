@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { YearWiseSurveyModal } from './YearWiseSurveyModal';
 import { ScannedSpecimenFormModal } from './ScannedSpecimenFormModal';
+import { isUnidentifiedSpeciesName } from '../utils/customSpeciesDB';
 
 import { INITIAL_SPECIES_CATALOG, enrichSpeciesWithEducationalData } from '../data/species';
 
@@ -48,6 +49,7 @@ interface BioDexViewProps {
   onReturnToScanner: () => void;
   surveyRecords?: SurveyRecord[];
   onDeleteRecord?: (recordId: string) => void;
+  onDeleteCustomSpecies?: (speciesId: string) => void;
   onUpdateRecord?: (record: SurveyRecord) => void;
   onNavigateToTab?: (tab: string) => void;
   onSelectRecordForSimulation?: (rec: SurveyRecord) => void;
@@ -63,18 +65,106 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
   onReturnToScanner,
   surveyRecords = [],
   onDeleteRecord,
+  onDeleteCustomSpecies,
   onUpdateRecord,
   onNavigateToTab,
   onSelectRecordForSimulation,
 }) => {
-  // Tabs: 'archive' (Observation Log) | 'dossier' (Species Specimen Card) | 'pbr' (SOP-5 Register)
+  // Tabs: 'archive' (Species Catalog) | 'dossier' (Species Specimen Card) | 'pbr' (My Observations)
   const [activeSegment, setActiveSegment] = useState<'archive' | 'dossier' | 'pbr'>('archive');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'All' | 'Flora' | 'Fauna' | 'Avian'>('All');
+  const [categoryFilter, setCategoryFilter] = useState<'All' | 'My Saved' | 'Flora' | 'Fauna' | 'Avian'>('All');
   const [isYearSurveyModalOpen, setIsYearSurveyModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SurveyRecord | null>(null);
+  const [deletingSpeciesId, setDeletingSpeciesId] = useState<string | null>(null);
 
-  const safeCatalog = (Array.isArray(catalog) && catalog.length > 0 ? catalog : INITIAL_SPECIES_CATALOG).map(enrichSpeciesWithEducationalData);
+  // Synthesize catalog: Start with catalog prop and cross-reference surveyRecords
+  const rawCatalog = Array.isArray(catalog) && catalog.length > 0 ? catalog : INITIAL_SPECIES_CATALOG;
+  const map = new Map<string, SpeciesData>();
+  rawCatalog.forEach((s) => map.set(s.id, s));
+
+  // Synthesize any observations in surveyRecords that might not have a species card yet
+  surveyRecords.forEach((rec) => {
+    const common = rec.speciesCommon || rec.Species_Name_Common;
+    if (common && !isUnidentifiedSpeciesName(common)) {
+      const matchKey = rec.speciesId || `rec-spec-${common.toLowerCase().replace(/\s+/g, '-')}`;
+      const existing = map.get(matchKey) || Array.from(map.values()).find((s) => s.commonName.toLowerCase() === common.toLowerCase());
+      if (existing) {
+        map.set(existing.id, {
+          ...existing,
+          isUserSaved: true,
+          savedAt: rec.timestamp,
+          imageUrl: rec.imageUrl || existing.imageUrl,
+        });
+      } else {
+        map.set(matchKey, {
+          id: matchKey,
+          catalogNumber: `OBS-${Math.floor(100 + Math.random() * 900)}`,
+          slotNumber: `#OBS-${Math.floor(100 + Math.random() * 900)}`,
+          level: 1,
+          category: 'Flora',
+          subType: 'Saved Observation',
+          commonName: common,
+          scientificName: rec.speciesScientific || rec.Species_Name_Scientific || `${common} sp.`,
+          genderOrReproduction: 'HERMAPHRODITIC',
+          imageUrl: rec.imageUrl || rec.Image_URL || 'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80',
+          visionMatchConfidence: parseFloat(rec.visionConfidence || '95') || 95,
+          biodiversityRank: 5,
+          biodiversityScore: 95,
+          taxonomy: {
+            kingdom: 'PLANTAE',
+            order: 'OBSERVED',
+            family: 'Field Discovery',
+            genusSpecies: (rec.speciesScientific || common).toUpperCase(),
+          },
+          iucnStatus: (rec.aiEndangeredStatus || 'Least Concern') as any,
+          habitat: rec.habitatType || 'Field Observation',
+          historicalPop2001: 50000,
+          historicalPop2007: 45000,
+          historicalPop2012: 40000,
+          historicalPop2013: 38000,
+          historicalPop2019: 35000,
+          currentPop2026: 30000,
+          predictedPop2031: 28000,
+          vitalityStats: {
+            populationHealthValue: `${rec.observedCount || 1} Observed`,
+            populationHealthPercent: 65,
+            populationHealthStatus: 'STABLE',
+            habitatIntegrityPercent: 70,
+            habitatIntegrityStatus: '70% INTACT',
+            pollinatorDensityPercent: 50,
+            pollinatorDensityStatus: '50% ACTIVE',
+            climateResiliencePercent: 75,
+            climateResilienceStatus: '75% STABLE',
+            extinctionModelRiskPercent: rec.aiExtinctionRiskPercentage || 15.0,
+            extinctionHorizonYear: 2050,
+          },
+          limitingFactors: {
+            habitatFragmentation: 20,
+            pollinatorDensity: 40,
+            climateVolatility: 30,
+          },
+          biologistMemo: {
+            entryRef: `BIO-${rec.recordId}`,
+            reserveLocation: rec.habitatType || 'Field Observation',
+            timeLogged: rec.timestamp,
+            details: `Observed ${rec.observedCount} specimen(s) in ${rec.habitatType}.`,
+          },
+          curriculumDiscussion: `Field observation of ${common}.`,
+          isUserSaved: true,
+          savedAt: rec.timestamp,
+        });
+      }
+    }
+  });
+
+  const enrichedAll = Array.from(map.values()).map(enrichSpeciesWithEducationalData);
+  // Prioritize user-saved species at the top of the catalog
+  const userSavedList = enrichedAll.filter(
+    (s) => s.isUserSaved || s.isCustomDiscovery || surveyRecords.some((r) => r.speciesId === s.id || r.speciesCommon?.toLowerCase() === s.commonName.toLowerCase())
+  );
+  const standardList = enrichedAll.filter((s) => !userSavedList.some((u) => u.id === s.id));
+  const safeCatalog = [...userSavedList, ...standardList];
   const activeSpecies = enrichSpeciesWithEducationalData(currentSpecies || safeCatalog[0] || INITIAL_SPECIES_CATALOG[0]);
 
   // Category counts
@@ -103,6 +193,9 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
     const matchesSearch = common.includes(query) || scientific.includes(query) || category.includes(query);
     if (!matchesSearch) return false;
 
+    if (categoryFilter === 'My Saved') {
+      return s.isUserSaved || s.isCustomDiscovery || surveyRecords.some((r) => r.speciesId === s.id || r.speciesCommon?.toLowerCase() === s.commonName.toLowerCase());
+    }
     if (categoryFilter === 'Flora') {
       return category.includes('flora') || category.includes('plant');
     }
@@ -146,7 +239,7 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Observation Log
+            Species Catalog
           </button>
           <button
             type="button"
@@ -174,12 +267,12 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            PBR Register
+            My Observations (PBR)
           </button>
         </div>
       </div>
 
-      {/* SEGMENT 1: OBSERVATION LOG (Exact from biodex_history_catalog_bright_minimal) */}
+      {/* SEGMENT 1: SPECIES CATALOG */}
       {activeSegment === 'archive' && (
         <div className="flex flex-col gap-4">
           {/* Title & Search Header */}
@@ -187,12 +280,12 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-mono font-semibold text-emerald-600 uppercase tracking-wider">
-                  Field Archive
+                  Field Catalog
                 </span>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Observation Log</h1>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Species Catalog</h1>
               </div>
               <span className="text-xs font-mono font-medium px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-slate-500">
-                {catalog.length} Entries
+                {filteredCatalog.length} Entries
               </span>
             </div>
 
@@ -218,9 +311,9 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
             </div>
           </div>
 
-          {/* Filter Pills (Bright Only) */}
+          {/* Filter Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-            {(['All', 'Flora', 'Fauna', 'Avian'] as const).map((cat) => (
+            {(['All', 'My Saved', 'Flora', 'Fauna', 'Avian'] as const).map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -234,14 +327,10 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                     : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-400'
                 }`}
               >
-                <span>
-                  {cat === 'All' && 'All'}
-                  {cat === 'Flora' && '🌿 Flora'}
-                  {cat === 'Fauna' && '🦋 Fauna'}
-                  {cat === 'Avian' && '🦅 Avian'}
-                </span>
+                <span>{cat}</span>
                 {cat !== 'All' && (
                   <span className={`font-mono text-[11px] ${categoryFilter === cat ? 'text-slate-300' : 'text-slate-400'}`}>
+                    {cat === 'My Saved' && userSavedList.length}
                     {cat === 'Flora' && floraCount}
                     {cat === 'Fauna' && faunaCount}
                     {cat === 'Avian' && avianCount}
@@ -269,6 +358,10 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                     src={specimen.imageUrl}
                     alt={specimen.commonName}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=800&q=80';
+                    }}
                   />
                   <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-white/90 text-emerald-700 font-mono text-[9px] font-bold shadow-xs">
                     {specimen.visionMatchConfidence || 98}%
@@ -278,10 +371,32 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                 {/* Details */}
                 <div className="flex flex-col min-w-0 flex-1 gap-1">
                   <div className="flex items-start justify-between gap-1">
-                    <h2 className="text-sm font-bold text-slate-900 truncate">
-                      {specimen.commonName}
-                    </h2>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h2 className="text-sm font-bold text-slate-900 truncate">
+                        {specimen.commonName}
+                      </h2>
+                      {(specimen.isUserSaved || specimen.isCustomDiscovery) && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                          SAVED
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(specimen.isUserSaved || specimen.isCustomDiscovery) && onDeleteCustomSpecies && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteCustomSpecies(specimen.id);
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          title="Delete from Catalog"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
                   </div>
                   <p className="text-xs italic text-slate-500 truncate">
                     {specimen.scientificName}
@@ -299,7 +414,9 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                    Active Observation · {specimen.currentPop2026?.toLocaleString() || '28,500'} Wild Stems
+                    {(specimen.isUserSaved || specimen.isCustomDiscovery)
+                      ? `Saved Specimen · ${specimen.vitalityStats?.populationHealthValue || 'Recorded in Field Notes'}`
+                      : `Reference Catalog · Est. Pop: ${specimen.currentPop2026?.toLocaleString() || '28,500'}`}
                   </p>
                 </div>
               </article>
@@ -324,14 +441,14 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
       {/* SEGMENT 2: SPECIMEN DOSSIER (Detailed BioDex Card) */}
       {activeSegment === 'dossier' && (
         <div className="flex flex-col gap-4">
-          {/* Top navigation back to archive */}
+          {/* Top navigation back to catalog */}
           <button
             type="button"
             onClick={() => setActiveSegment('archive')}
             className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Observation Log</span>
+            <span>Back to Species Catalog</span>
           </button>
 
           {/* 4:3 Specimen Image Card */}
@@ -341,6 +458,10 @@ export const BioDexView: React.FC<BioDexViewProps> = ({
                 src={activeSpecies?.imageUrl}
                 alt={activeSpecies?.commonName}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=800&q=80';
+                }}
               />
               <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-200/80 shadow-xs flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
